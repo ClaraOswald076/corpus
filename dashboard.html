@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>多智能体层级平台 — 管理面板</title>
+<style>
+:root{--bg:#0f172a;--surface:#1e293b;--border:#334155;--text:#e2e8f0;--text2:#94a3b8;--primary:#38bdf8;--accent:#818cf8;--green:#4ade80;--red:#f87171;--yellow:#fbbf24;--orange:#fb923c}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:"Microsoft YaHei","PingFang SC",sans-serif;background:var(--bg);color:var(--text);display:flex;height:100vh;overflow:hidden}
+.sidebar{width:220px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:16px 0;flex-shrink:0}
+.sidebar h2{font-size:1.1em;color:var(--primary);padding:0 16px 16px;border-bottom:1px solid var(--border);margin-bottom:8px}
+.sidebar nav{flex:1}
+.sidebar nav a{display:block;padding:10px 16px;color:var(--text2);text-decoration:none;font-size:.9em;border-left:3px solid transparent;transition:all .2s;cursor:pointer}
+.sidebar nav a:hover,.sidebar nav a.active{color:var(--text);background:rgba(56,189,248,.08);border-left-color:var(--primary)}
+.main{flex:1;overflow-y:auto;padding:24px}
+.tab{display:none}.tab.active{display:block}
+.page-title{font-size:1.4em;color:var(--primary);margin-bottom:20px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;margin-bottom:24px}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:16px}
+.stat-card .num{font-size:2em;font-weight:700;color:var(--primary)}
+.stat-card .label{color:var(--text2);font-size:.85em}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:20px;margin-bottom:16px}
+.card h3{color:var(--primary);margin-bottom:12px;font-size:1em}
+table{width:100%;border-collapse:collapse;font-size:.85em}
+th{background:var(--border);color:var(--primary);padding:8px 12px;text-align:left;font-weight:600}
+td{padding:8px 12px;border-bottom:1px solid var(--border)}
+tr:hover td{background:rgba(56,189,248,.04)}
+.btn{display:inline-block;padding:6px 14px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer;font-size:.85em;transition:all .2s;text-decoration:none}
+.btn:hover{border-color:var(--primary)}
+.btn-primary{background:var(--primary);color:#000;border:none;font-weight:600}
+.btn-danger{background:var(--red);color:#fff;border:none}
+.btn-sm{padding:3px 10px;font-size:.78em}
+.tag{display:inline-block;padding:2px 8px;border-radius:10px;font-size:.75em;font-weight:600}
+.tag-g{background:rgba(74,222,128,.2);color:var(--green)}.tag-r{background:rgba(248,113,113,.2);color:var(--red)}
+.tag-b{background:rgba(56,189,248,.2);color:var(--primary)}.tag-y{background:rgba(251,191,36,.2);color:var(--yellow)}
+.tag-p{background:rgba(129,140,248,.2);color:var(--accent)}.tag-o{background:rgba(251,146,60,.2);color:var(--orange)}
+input,select,textarea{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:8px 12px;color:var(--text);font-size:.9em;width:100%;margin-bottom:8px}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--primary)}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.modal{display:none;position:fixed;z-index:1000;left:0;top:0;width:100%;height:100%;background:rgba(0,0,0,.6)}
+.modal.active{display:flex;align-items:center;justify-content:center}
+.modal-content{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:24px;max-width:550px;width:90%;max-height:80vh;overflow-y:auto}
+.modal h3{color:var(--primary);margin-bottom:16px}
+.org-node{cursor:pointer;padding:6px 10px;border-radius:4px;margin:2px 0;transition:all .2s;font-size:.88em}
+.org-node:hover{background:rgba(56,189,248,.1)}
+.org-node .toggle{margin-right:6px;font-size:.8em;color:var(--text2)}
+.org-children{margin-left:20px;border-left:1px dashed var(--border);padding-left:8px}
+.toast{position:fixed;top:16px;right:16px;z-index:2000;padding:12px 20px;border-radius:8px;font-size:.9em;animation:slideIn .3s}
+.toast-ok{background:var(--green);color:#000}.toast-err{background:var(--red);color:#fff}
+@keyframes slideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}
+.tree-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.row{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+pre{background:var(--bg);padding:12px;border-radius:6px;font-size:.82em;max-height:400px;overflow:auto;white-space:pre-wrap}
+.chat-container{display:flex;flex-direction:column;height:calc(100vh - 180px);max-width:900px}
+.chat-messages{flex:1;overflow-y:auto;padding:16px;background:var(--bg);border-radius:8px;margin-bottom:12px}
+.chat-msg{margin-bottom:14px;display:flex;gap:10px}
+.chat-msg.user{flex-direction:row-reverse}
+.chat-msg .avatar{width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.9em;flex-shrink:0}
+.chat-msg.agent .avatar{background:var(--primary);color:#000}
+.chat-msg.user .avatar{background:var(--accent);color:#fff}
+.chat-msg .bubble{max-width:75%;padding:10px 14px;border-radius:12px;font-size:.88em;line-height:1.5}
+.chat-msg.agent .bubble{background:var(--surface);border:1px solid var(--border)}
+.chat-msg.user .bubble{background:var(--primary);color:#000}
+.chat-msg .bubble .meta{font-size:.7em;color:var(--text2);margin-bottom:4px}
+.chat-input-row{display:flex;gap:10px}
+.chat-input-row input{flex:1;margin:0}
+.chat-input-row select{width:200px;margin:0}
+.typing{color:var(--text2);font-style:italic;padding:8px}
+</style>
+</head>
+<body>
+
+<div class="sidebar">
+<h2>🏢 管理面板</h2>
+<nav>
+<a class="active" onclick="switchTab('overview')">📊 总览</a>
+<a onclick="switchTab('org')">🏗️ 组织架构</a>
+<a onclick="switchTab('agents')">🤖 Agent管理</a>
+<a onclick="switchTab('tasks')">📋 任务管理</a>
+<a onclick="switchTab('meetings')">💬 会议管理</a>
+<a onclick="switchTab('presets')">⚙️ 模型预设</a>
+<a onclick="switchTab('escalations')">⚠️ 升级管理</a>
+<a onclick="switchTab('chat')" style="border-top:1px solid var(--border);margin-top:8px;padding-top:12px">💬 对话 Agent</a>
+</nav>
+<div style="padding:16px;border-top:1px solid var(--border);font-size:.75em;color:var(--text2)">
+API: <a href="/docs" target="_blank" style="color:var(--primary)">/docs</a>
+</div>
+</div>
+
+<div class="main">
+
+<!-- ============ 总览 ============ -->
+<div id="tab-overview" class="tab active">
+<div class="page-title">📊 平台总览</div>
+<div class="stats" id="overview-stats"></div>
+<div class="card"><h3>活跃会议</h3><div id="overview-active-meetings">加载中...</div></div>
+<div class="card"><h3>待处理升级</h3><div id="overview-pending-escalations">加载中...</div></div>
+</div>
+
+<!-- ============ 组织架构 ============ -->
+<div id="tab-org" class="tab">
+<div class="page-title">🏗️ 组织架构</div>
+<div class="row" style="margin-bottom:16px">
+<button class="btn btn-primary" onclick="openOrgModal()">+ 新建部门</button>
+<button class="btn" onclick="refreshOrg()">🔄 刷新</button>
+</div>
+<div class="card"><div id="org-tree"></div></div>
+</div>
+
+<!-- ============ Agent管理 ============ -->
+<div id="tab-agents" class="tab">
+<div class="page-title">🤖 Agent管理</div>
+<div class="row" style="margin-bottom:16px">
+<button class="btn btn-primary" onclick="openAgentModal()">+ 新建Agent</button>
+<button class="btn" onclick="refreshAgents()">🔄 刷新</button>
+</div>
+<div class="card"><div id="agent-list"></div></div>
+</div>
+
+<!-- ============ 任务管理 ============ -->
+<div id="tab-tasks" class="tab">
+<div class="page-title">📋 任务管理</div>
+<div class="row" style="margin-bottom:16px">
+<button class="btn btn-primary" onclick="openTaskModal()">+ 新建任务</button>
+<select id="task-filter" onchange="refreshTasks()" style="width:auto;margin:0">
+<option value="">全部状态</option><option value="pending">待处理</option><option value="in_progress">进行中</option><option value="completed">已完成</option><option value="failed">失败</option><option value="needs_clarification">需澄清</option><option value="blocked">阻塞</option><option value="cancelled">已取消</option>
+</select>
+<button class="btn" onclick="refreshTasks()">🔄 刷新</button>
+</div>
+<div class="card"><div id="task-list"></div></div>
+</div>
+
+<!-- ============ 会议管理 ============ -->
+<div id="tab-meetings" class="tab">
+<div class="page-title">💬 会议管理</div>
+<div class="row" style="margin-bottom:16px">
+<button class="btn btn-primary" onclick="openMeetingModal()">+ 创建会议</button>
+<button class="btn" onclick="refreshMeetings()">🔄 刷新</button>
+</div>
+<div class="card"><div id="meeting-list"></div></div>
+</div>
+
+<!-- ============ 模型预设 ============ -->
+<div id="tab-presets" class="tab">
+<div class="page-title">⚙️ 模型预设</div>
+<div class="row" style="margin-bottom:16px">
+<button class="btn btn-primary" onclick="openPresetModal()">+ 新建预设</button>
+<button class="btn" onclick="refreshPresets()">🔄 刷新</button>
+</div>
+<div class="card"><div id="preset-list"></div></div>
+</div>
+
+<!-- ============ 升级管理 ============ -->
+<div id="tab-escalations" class="tab">
+<div class="page-title">⚠️ 升级管理</div>
+<div class="row" style="margin-bottom:16px">
+<button class="btn" onclick="refreshEscalations()">🔄 刷新</button>
+</div>
+<div class="card"><div id="escalation-list"></div></div>
+</div>
+
+<!-- ============ 对话 Agent ============ -->
+<div id="tab-chat" class="tab">
+<div class="page-title">💬 与 Agent 对话</div>
+<div class="card">
+<div class="chat-container">
+<div class="chat-input-row" style="margin-bottom:12px">
+<select id="chat-agent-select" onchange="selectChatAgent(this.value)">
+<option value="">选择 Agent...</option>
+</select>
+<button class="btn btn-sm" onclick="refreshChatAgents()">🔄</button>
+<span id="chat-agent-info" style="font-size:.8em;color:var(--text2)"></span>
+</div>
+<div class="chat-messages" id="chat-messages">
+<div style="color:var(--text2);text-align:center;padding:40px">
+选择一个 Agent 开始对话<br>
+<small>向CEO布置战略任务、向产品部负责人下达需求、与各中心直接沟通</small>
+</div>
+</div>
+<div class="chat-input-row">
+<input id="chat-input" placeholder="输入消息，按Enter发送..." onkeydown="if(event.key==='Enter')sendChat()">
+<button class="btn btn-primary" onclick="sendChat()" id="chat-send-btn">发送</button>
+</div>
+</div>
+</div>
+</div>
+
+</div>
+
+<!-- Modals -->
+<div class="modal" id="modal"><div class="modal-content" id="modal-content"></div></div>
+<div id="toast-container"></div>
+
+<script>
+const API = '';
+let currentTab = 'overview';
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.sidebar nav a').forEach(a=>a.classList.remove('active'));
+  document.getElementById('tab-'+name).classList.add('active');
+  document.querySelectorAll('.sidebar nav a').forEach(a=>{if(a.textContent.includes(name)||a.onclick?.toString().includes(name))a.classList.add('active')});
+  currentTab = name;
+  if(name=='overview') loadOverview();
+  else if(name=='org') refreshOrg();
+  else if(name=='agents') refreshAgents();
+  else if(name=='tasks') refreshTasks();
+  else if(name=='meetings') refreshMeetings();
+  else if(name=='presets') refreshPresets();
+  else if(name=='escalations') refreshEscalations();
+}
+
+async function api(url, opts={}) {
+  try {
+    const res = await fetch(API+url, {headers:{'Content-Type':'application/json'},...opts});
+    if(!res.ok) { const e=await res.json(); throw new Error(e.detail||res.statusText); }
+    return await res.json();
+  } catch(e) { toast(e.message,'err'); throw e; }
+}
+
+function toast(msg,type='ok') {
+  const t=document.createElement('div');t.className='toast toast-'+type;t.textContent=msg;
+  document.getElementById('toast-container').appendChild(t);
+  setTimeout(()=>t.remove(),3000);
+}
+
+function modal(title,body,onSave) {
+  const m=document.getElementById('modal');
+  document.getElementById('modal-content').innerHTML=
+    `<h3>${title}</h3>${body}<div style="margin-top:16px;text-align:right">
+    <button class="btn" onclick="closeModal()">取消</button>
+    <button class="btn btn-primary" id="modal-save">保存</button></div>`;
+  m.classList.add('active');
+  if(onSave) document.getElementById('modal-save').onclick=async()=>{await onSave();closeModal();};
+}
+function closeModal(){document.getElementById('modal').classList.remove('active')}
+
+// ==================== 总览 ====================
+async function loadOverview() {
+  const [org,agents,tasks,meetings,escalations] = await Promise.all([
+    api('/api/org/').catch(()=>[]),
+    api('/api/agents/').catch(()=>[]),
+    api('/api/tasks/').catch(()=>[]),
+    api('/api/meetings/').catch(()=>[]),
+    api('/api/escalations/pending').catch(()=>[]),
+  ]);
+  const activeTasks = tasks.filter(t=>['pending','in_progress'].includes(t.status));
+  const failedTasks = tasks.filter(t=>['failed','needs_clarification'].includes(t.status));
+  document.getElementById('overview-stats').innerHTML = `
+    <div class="stat-card"><div class="num">${org.length||0}</div><div class="label">部门</div></div>
+    <div class="stat-card"><div class="num">${agents.length||0}</div><div class="label">Agent</div></div>
+    <div class="stat-card"><div class="num">${activeTasks.length||0}</div><div class="label">进行中任务</div></div>
+    <div class="stat-card"><div class="num">${tasks.filter(t=>t.status=='completed').length||0}</div><div class="label">已完成</div></div>
+    <div class="stat-card"><div class="num">${meetings.length||0}</div><div class="label">会议</div></div>
+    <div class="stat-card"><div class="num" style="color:${failedTasks.length? 'var(--red)':'var(--green)'}">${failedTasks.length||0}</div><div class="label">需关注</div></div>
+  `;
+  document.getElementById('overview-active-meetings').innerHTML = meetings.filter(m=>m.status=='in_progress').length
+    ? meetings.filter(m=>m.status=='in_progress').map(m=>`<div>◉ ${m.meeting_code} ${m.title} (${m.meeting_type})</div>`).join('')
+    : '无活跃会议';
+  document.getElementById('overview-pending-escalations').innerHTML = escalations.length
+    ? escalations.map(e=>`<div>⚠ L${e.escalation_level} 任务${e.task_id?.slice(0,8)} → ${e.reason}</div>`).join('')
+    : '无待处理升级';
+}
+
+// ==================== 组织架构 ====================
+async function refreshOrg() {
+  const tree = await api('/api/org/tree');
+  function render(nodes) {
+    return nodes.map(n=>`
+      <div class="org-node">
+        <span style="color:var(--primary)">[T${n.tier}]</span> <strong>${n.name}</strong>
+        <span style="color:var(--text2);font-size:.8em">(${n.dept_type})</span>
+        ${n.dept_code?` <span class="tag tag-b">${n.dept_code}</span>`:''}
+        ${!n.is_active?' <span class="tag tag-r">已停用</span>':''}
+        <span style="float:right">
+          <button class="btn btn-sm" onclick="deleteDept('${n.id}','${n.name}')">删除</button>
+        </span>
+        ${n.agents?.length?`
+          <div style="margin-top:6px;font-size:.82em;color:var(--text2)">
+            ${n.agents.map(a=>`<span style="margin-right:10px" title="${a.role} · ${a.preset||'无模型'}">${a.is_active?'🤖':'💤'} ${a.name}</span>`).join('')}
+          </div>`:''}
+      </div>
+      ${n.children?.length?`<div class="org-children">${render(n.children)}</div>`:''}
+    `).join('');
+  }
+  document.getElementById('org-tree').innerHTML = render(tree);
+}
+
+async function openOrgModal() {
+  modal('新建部门',`
+    <label>名称</label><input id="f-org-name">
+    <label>层级</label><select id="f-org-tier"><option value="1">T1 部门</option><option value="2">T2 中心/科室</option></select>
+    <label>类型</label><select id="f-org-type"><option value="department">部门(T1)</option><option value="center">中心(T2)</option><option value="office">科室(T2)</option><option value="section">处室(T2)</option></select>
+    <label>上级部门名称</label><input id="f-org-parent" placeholder="T0留空表示挂在CEO办公室下">
+    <label>描述</label><input id="f-org-desc" placeholder="可选">
+  `, async ()=>{
+    await api('/api/org/',{method:'POST',body:JSON.stringify({
+      name:document.getElementById('f-org-name').value,
+      tier:parseInt(document.getElementById('f-org-tier').value),
+      dept_type:document.getElementById('f-org-type').value,
+      parent_name:document.getElementById('f-org-parent').value,
+      description:document.getElementById('f-org-desc').value,
+    })});
+    toast('部门已创建');
+    refreshOrg();
+  });
+}
+
+async function deleteDept(id,name) {
+  if(!confirm(`确定删除部门 "${name}"？`)) return;
+  await api('/api/org/'+id,{method:'DELETE'});
+  toast('部门已删除');
+  refreshOrg();
+}
+
+// ==================== Agent管理 ====================
+let agentPresets = [];
+async function refreshAgents() {
+  const agents = await api('/api/agents/');
+  agentPresets = await api('/api/presets/');
+  document.getElementById('agent-list').innerHTML = agents.length ? `
+    <table><tr><th>名称</th><th>角色</th><th>模型/温度</th><th>状态</th><th>操作</th></tr>
+    ${agents.map(a=>`<tr>
+      <td><strong>${a.name}</strong></td><td>${a.role}</td>
+      <td>
+        <span style="font-size:.82em">${a.preset_name||'<span class="tag tag-r">无模型</span>'}</span>
+        <span style="font-size:.78em;color:var(--text2)"> | T:${a.temperature} | tok:${a.max_tokens}</span>
+      </td>
+      <td>${a.is_active?'<span class="tag tag-g">活跃</span>':'<span class="tag tag-r">停用</span>'}</td>
+      <td>
+        <button class="btn btn-sm" onclick="viewAgent('${a.id}')">详情</button>
+        <button class="btn btn-sm" onclick="editAgent('${a.id}','${a.name}','${a.role}','${a.preset_name||''}',${a.temperature},${a.max_tokens},${a.max_memory_tokens},${a.is_active})">✏️</button>
+        ${a.is_active?`<button class="btn btn-sm" onclick="toggleAgent('${a.id}',false,'${a.name}')">停用</button>`:`<button class="btn btn-sm btn-primary" onclick="toggleAgent('${a.id}',true,'${a.name}')">启用</button>`}
+        <button class="btn btn-sm btn-danger" onclick="deleteAgent('${a.id}','${a.name}')">删除</button>
+      </td>
+    `).join('')}</table>
+  ` : '<p style="color:var(--text2)">暂无Agent，请先创建</p>';
+}
+
+async function toggleAgent(id, activate, name) {
+  if (!confirm(`确定${activate?'启用':'停用'} "${name}"？`)) return;
+  await api('/api/agents/'+id, {method:'PUT', body:JSON.stringify({is_active:activate})});
+  toast(activate?'已启用':'已停用');
+  refreshAgents();
+}
+
+async function editAgent(id, name, role, presetName, temp, maxTok, maxMem, active) {
+  const presets = agentPresets.length ? agentPresets : await api('/api/presets/');
+  const presetOpts = presets.map(p=>`<option value="${p.name}" ${p.name===presetName?'selected':''}>${p.name} (${p.provider})</option>`).join('');
+  modal(`编辑: ${name}`,`
+    <p><strong>角色:</strong> ${role} | <strong>状态:</strong> ${active?'活跃':'停用'}</p>
+    <label>模型预设</label><select id="f-edit-preset"><option value="">无</option>${presetOpts}</select>
+    <label>Temperature</label><input id="f-edit-temp" type="number" step="0.1" min="0" max="2" value="${temp}">
+    <label>Max Tokens</label><input id="f-edit-tokens" type="number" value="${maxTok}">
+    <label>Max Memory Tokens</label><input id="f-edit-memory" type="number" value="${maxMem}">
+  `, async ()=>{
+    await api('/api/agents/'+id, {method:'PUT', body:JSON.stringify({
+      model_preset_name: document.getElementById('f-edit-preset').value,
+      temperature: parseFloat(document.getElementById('f-edit-temp').value),
+      max_tokens: parseInt(document.getElementById('f-edit-tokens').value),
+      max_memory_tokens: parseInt(document.getElementById('f-edit-memory').value),
+    })});
+    toast('Agent已更新');
+    refreshAgents();
+  });
+}
+
+async function openAgentModal() {
+  const depts = await api('/api/org/');
+  modal('新建Agent',`
+    <label>名称</label><input id="f-agent-name">
+    <label>角色</label><input id="f-agent-role">
+    <label>所属部门</label><select id="f-agent-dept">${depts.map(d=>`<option value="${d.name}">${d.name} (T${d.tier})</option>`).join('')}</select>
+    <label>模型预设名称(可选)</label><input id="f-agent-preset" placeholder="留空使用默认">
+    <label>汇报对象(可选)</label><input id="f-agent-superior" placeholder="Agent名称，留空跳过">
+    <label>系统提示词(可选)</label><textarea id="f-agent-prompt" rows="3" placeholder="额外的系统指令"></textarea>
+  `, async ()=>{
+    await api('/api/agents/',{method:'POST',body:JSON.stringify({
+      name:document.getElementById('f-agent-name').value,
+      role:document.getElementById('f-agent-role').value,
+      department_name:document.getElementById('f-agent-dept').value,
+      preset_name:document.getElementById('f-agent-preset').value,
+      reports_to:document.getElementById('f-agent-superior').value,
+      system_prompt:document.getElementById('f-agent-prompt').value,
+    })});
+    toast('Agent已创建');
+    refreshAgents();
+  });
+}
+
+async function viewAgent(id) {
+  const a = await api('/api/agents/'+id);
+  modal(`Agent: ${a.name}`,`
+    <p><strong>角色:</strong> ${a.role}</p>
+    <p><strong>状态:</strong> ${a.is_active?'活跃':'停用'} (${a.availability_status})</p>
+    <p><strong>文件夹:</strong> ${a.agent_folder_path}</p>
+    <p><strong>温度:</strong> ${a.temperature} | <strong>max_tokens:</strong> ${a.max_tokens}</p>
+    <p><strong>记忆上限:</strong> ${a.max_memory_tokens} tokens</p>
+    <hr><h4>soul.md</h4><pre>${a.soul_content?.substring(0,2000)||'(空)'}</pre>
+  `);
+}
+
+async function deleteAgent(id,name) {
+  if(!confirm(`确定删除 Agent "${name}"？将同时删除其文件夹！`)) return;
+  await api('/api/agents/'+id,{method:'DELETE'});
+  toast('Agent已删除');
+  refreshAgents();
+}
+
+// ==================== 任务管理 ====================
+async function refreshTasks() {
+  const status = document.getElementById('task-filter')?.value||'';
+  const tasks = await api('/api/tasks/'+(status?`?status=${status}`:''));
+  const icons={pending:'○',in_progress:'◉',completed:'✓',failed:'✗',needs_clarification:'?',cancelled:'⊘',blocked:'⊡'};
+  document.getElementById('task-list').innerHTML = tasks.length?`
+    <table><tr><th>编号</th><th>标题</th><th>状态</th><th>优先级</th><th>操作</th></tr>
+    ${tasks.map(t=>`<tr>
+      <td><code>${t.task_code}</code></td><td>${t.title}</td>
+      <td>${icons[t.status]||' '} ${t.status}</td>
+      <td><span class="tag tag-${t.priority=='critical'?'r':t.priority=='high'?'o':t.priority=='medium'?'y':'b'}">${t.priority}</span></td>
+      <td>
+        <select onchange="updateTaskStatus('${t.id}','${t.task_code}',this.value)" style="width:auto;margin:0;font-size:.75em">
+          <option value="">操作...</option>
+          <option value="in_progress">开始</option><option value="completed">完成</option><option value="failed">失败</option>
+          <option value="needs_clarification">需澄清</option><option value="retry">重试</option><option value="cancelled">取消</option>
+        </select>
+        <button class="btn btn-sm" onclick="viewTask('${t.id}')">树</button>
+      </td>
+    `).join('')}</table>
+  `:'<p style="color:var(--text2)">暂无任务</p>';
+}
+
+async function openTaskModal() {
+  const agents = await api('/api/agents/');
+  modal('新建任务',`
+    <label>标题</label><input id="f-task-title">
+    <label>描述</label><textarea id="f-task-desc" rows="3"></textarea>
+    <label>优先级</label><select id="f-task-pri"><option value="medium">中</option><option value="high">高</option><option value="critical">紧急</option><option value="low">低</option></select>
+    <label>分配给Agent</label><select id="f-task-agent"><option value="">不分配</option>${agents.map(a=>`<option value="${a.name}">${a.name}</option>`).join('')}</select>
+    <label>父任务编号(可选)</label><input id="f-task-parent">
+  `, async ()=>{
+    await api('/api/tasks/',{method:'POST',body:JSON.stringify({
+      title:document.getElementById('f-task-title').value,
+      description:document.getElementById('f-task-desc').value,
+      priority:document.getElementById('f-task-pri').value,
+      assign_to:document.getElementById('f-task-agent').value,
+      parent_code:document.getElementById('f-task-parent').value,
+    })});
+    toast('任务已创建');
+    refreshTasks();
+  });
+}
+
+async function updateTaskStatus(id,code,status) {
+  if(!status) return;
+  await api('/api/tasks/'+id+'/status',{method:'PUT',body:JSON.stringify({status})});
+  toast(`任务 ${code} → ${status}`);
+  refreshTasks();
+}
+
+async function viewTask(id) {
+  const tree = await api('/api/tasks/'+id+'/tree');
+  function render(node,depth=0) {
+    const t=node;const prefix='&nbsp;&nbsp;'.repeat(depth);
+    return `${prefix}[${t.status}] ${t.task_code}: ${t.title} (${t.priority})<br>${(node.children||[]).map(c=>render(c,depth+1)).join('')}`;
+  }
+  modal('任务树',`<div style="font-family:monospace;font-size:.85em">${render(tree)}</div>`);
+}
+
+// ==================== 会议管理 ====================
+async function refreshMeetings() {
+  const meetings = await api('/api/meetings/');
+  document.getElementById('meeting-list').innerHTML = meetings.length?`
+    <table><tr><th>编号</th><th>标题</th><th>类型</th><th>状态</th><th>操作</th></tr>
+    ${meetings.map(m=>`<tr>
+      <td><code>${m.meeting_code}</code></td><td>${m.title}</td>
+      <td><span class="tag tag-p">${m.meeting_type}</span></td>
+      <td>${m.status}</td>
+      <td>
+        ${m.status=='scheduled'?`<button class="btn btn-sm btn-primary" onclick="startMeeting('${m.id}')">开始</button>`:''}
+        ${m.status=='in_progress'?`<button class="btn btn-sm" onclick="endMeeting('${m.id}')">结束</button>`:''}
+        <button class="btn btn-sm" onclick="viewMeeting('${m.id}')">详情</button>
+      </td>
+    `).join('')}</table>
+  `:'<p style="color:var(--text2)">暂无会议</p>';
+}
+
+async function openMeetingModal() {
+  const agents = await api('/api/agents/');
+  modal('创建会议',`
+    <label>标题</label><input id="f-mtg-title">
+    <label>类型</label><select id="f-mtg-type"><option value="coordination">协调会议</option><option value="user_direct">用户直连</option><option value="recruitment_review">招聘研讨</option></select>
+    <label>秘书Agent</label><select id="f-mtg-sec">${agents.filter(a=>a.role.includes('秘书')).map(a=>`<option value="${a.name}">${a.name}</option>`).join('')||'<option>请先创建秘书Agent</option>'}</select>
+    <label>主席Agent(可选)</label><select id="f-mtg-chair"><option value="">自动</option>${agents.map(a=>`<option value="${a.name}">${a.name}</option>`).join('')}</select>
+    <label>参会Agent(逗号分隔)</label><input id="f-mtg-parts" placeholder="Agent1,Agent2">
+  `, async ()=>{
+    await api('/api/meetings/',{method:'POST',body:JSON.stringify({
+      title:document.getElementById('f-mtg-title').value,
+      meeting_type:document.getElementById('f-mtg-type').value,
+      secretary_name:document.getElementById('f-mtg-sec').value,
+      chair_name:document.getElementById('f-mtg-chair').value,
+      participants:document.getElementById('f-mtg-parts').value,
+    })});
+    toast('会议已创建');
+    refreshMeetings();
+  });
+}
+
+async function startMeeting(id) {
+  await api('/api/meetings/'+id+'/start',{method:'POST'});
+  toast('会议已开始');
+  refreshMeetings();
+}
+async function endMeeting(id) {
+  await api('/api/meetings/'+id+'/end',{method:'POST'});
+  toast('会议已结束');
+  refreshMeetings();
+}
+async function viewMeeting(id) {
+  const m = await api('/api/meetings/'+id);
+  const stmts = await api('/api/meetings/'+id+'/statements');
+  modal(`会议: ${m.title}`,
+    `<p><strong>编号:</strong> ${m.meeting_code} | <strong>类型:</strong> ${m.meeting_type} | <strong>状态:</strong> ${m.status}</p>
+    <p><strong>参会者:</strong> ${(m.participants||[]).map(p=>`${p.role}: ${p.agent_id?.slice(0,8)}`).join(', ')||'无'}</p>
+    ${stmts.length?`<h4>发言记录 (${stmts.length}条)</h4>${stmts.map(s=>`<p style="font-size:.85em;margin:4px 0">[${s.type}] <strong>${s.speaker?.slice(0,8)}</strong>: ${s.content?.substring(0,100)}...</p>`).join('')}`:''}
+  `);
+}
+
+// ==================== 模型预设 ====================
+async function refreshPresets() {
+  const presets = await api('/api/presets/');
+  document.getElementById('preset-list').innerHTML = presets.length?`
+    <table><tr><th>名称</th><th>提供商</th><th>模型</th><th>状态</th><th>操作</th></tr>
+    ${presets.map(p=>`<tr>
+      <td><strong>${p.name}</strong></td><td>${p.provider}</td><td>${p.model_name}</td>
+      <td>${p.is_active?'<span class="tag tag-g">活跃</span>':''}</td>
+      <td><button class="btn btn-sm btn-danger" onclick="deletePreset('${p.id}','${p.name}')">删除</button></td>
+    `).join('')}</table>
+  `:'<p style="color:var(--text2)">暂无模型预设，请先创建</p>';
+}
+
+async function openPresetModal() {
+  modal('新建模型预设',`
+    <label>预设名称</label><input id="f-preset-name" placeholder="如: claude-prod">
+    <label>提供商</label><select id="f-preset-provider"><option value="anthropic">Anthropic</option><option value="openai">OpenAI</option><option value="deepseek">DeepSeek</option></select>
+    <label>模型名称</label><input id="f-preset-model" placeholder="如: claude-sonnet-4-20250514">
+    <label>API Key</label><input id="f-preset-key" type="password" placeholder="sk-...">
+    <label>LiteLLM字符串(可选)</label><input id="f-preset-lite" placeholder="留空自动生成">
+  `, async ()=>{
+    await api('/api/presets/',{method:'POST',body:JSON.stringify({
+      name:document.getElementById('f-preset-name').value,
+      provider:document.getElementById('f-preset-provider').value,
+      model_name:document.getElementById('f-preset-model').value,
+      api_key_plaintext:document.getElementById('f-preset-key').value,
+      litellm_model_string:document.getElementById('f-preset-lite').value,
+    })});
+    toast('预设已创建');
+    refreshPresets();
+  });
+}
+
+async function deletePreset(id,name) {
+  if(!confirm(`确定删除预设 "${name}"？`)) return;
+  await api('/api/presets/'+id,{method:'DELETE'});
+  toast('预设已删除');
+  refreshPresets();
+}
+
+// ==================== 升级管理 ====================
+async function refreshEscalations() {
+  const pending = await api('/api/escalations/pending');
+  document.getElementById('escalation-list').innerHTML = pending.length?`
+    <table><tr><th>级别</th><th>任务</th><th>原因</th><th>目标Agent</th><th>操作</th></tr>
+    ${pending.map(e=>`<tr>
+      <td><span class="tag tag-r">L${e.escalation_level}</span></td>
+      <td><code>${e.task_id?.slice(0,8)}</code></td><td>${e.reason}</td>
+      <td>${e.to_agent_id?.slice(0,8)}</td>
+      <td>
+        <select onchange="resolveEscalation('${e.id}',this.value)" style="width:auto;margin:0;font-size:.75em">
+          <option value="">处理...</option>
+          <option value="modify_and_retry">修改重试</option><option value="escalate_higher">再升级</option>
+          <option value="resolve_directly">直接解决</option><option value="return_to_originator">退回</option><option value="cancelled">取消</option>
+        </select>
+      </td>
+    `).join('')}</table>
+  `:'<p style="color:var(--text2)">无待处理升级</p>';
+}
+
+async function resolveEscalation(id,resolution) {
+  if(!resolution) return;
+  await api('/api/escalations/'+id+'/resolve',{method:'PUT',body:JSON.stringify({resolution,resolved_by_agent_id:'00000000-0000-0000-0000-000000000000',notes:''})});
+  toast('升级已处理');
+  refreshEscalations();
+}
+
+// ==================== 对话 Agent ====================
+let chatHistory = [];
+
+async function loadChatAgents() {
+  const agents = await api('/api/chat/agents');
+  const sel = document.getElementById('chat-agent-select');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">选择 Agent...</option>';
+  agents.forEach(a => {
+    const status = a.is_active ? (a.has_model ? '✓' : '⚠无模型') : '✗停用';
+    sel.innerHTML += `<option value="${a.name}">${a.name} — ${a.role} [${status}]</option>`;
+  });
+  if (current) sel.value = current;
+}
+
+async function refreshChatAgents() { await loadChatAgents(); }
+
+async function selectChatAgent(name) {
+  if (!name) return;
+  const agents = await api('/api/chat/agents');
+  const a = agents.find(x => x.name === name);
+  if (a) {
+    document.getElementById('chat-agent-select').value = name;
+    document.getElementById('chat-agent-info').innerHTML =
+      `<span class="tag tag-${a.tier===0?'b':a.tier===1?'p':'g'}">T${a.tier}</span> ${a.role} | ${a.department} ${a.has_model?'':'<span class="tag tag-r">未配置模型</span>'}`;
+    chatHistory = [];
+    document.getElementById('chat-messages').innerHTML =
+      `<div style="color:var(--text2);text-align:center;padding:20px">现在开始与 <strong>${a.name}</strong> (${a.role}) 对话</div>`;
+  }
+}
+
+async function sendChat() {
+  const agentName = document.getElementById('chat-agent-select').value;
+  const message = document.getElementById('chat-input').value.trim();
+  if (!agentName) { toast('请先选择Agent', 'err'); return; }
+  if (!message) return;
+
+  const msgsDiv = document.getElementById('chat-messages');
+  // Add user message
+  msgsDiv.innerHTML += `<div class="chat-msg user">
+    <div class="avatar">👤</div>
+    <div class="bubble"><div class="meta">你</div>${escapeHtml(message)}</div>
+  </div>`;
+
+  document.getElementById('chat-input').value = '';
+  document.getElementById('chat-send-btn').disabled = true;
+
+  // Show typing
+  msgsDiv.innerHTML += `<div class="chat-msg agent" id="typing-indicator">
+    <div class="avatar">🤖</div><div class="bubble typing">${agentName} 正在思考...</div>
+  </div>`;
+  msgsDiv.scrollTop = msgsDiv.scrollHeight;
+
+  try {
+    const res = await api('/api/chat/', {
+      method: 'POST',
+      body: JSON.stringify({ agent_name: agentName, message: message }),
+    });
+
+    // Remove typing
+    document.getElementById('typing-indicator')?.remove();
+
+    // Add agent reply
+    msgsDiv.innerHTML += `<div class="chat-msg agent">
+      <div class="avatar">🤖</div>
+      <div class="bubble">
+        <div class="meta">${res.agent_name} (${res.agent_role}) · ${res.tokens_used||0} tokens · $${res.cost_usd?.toFixed(4)||0}</div>
+        ${escapeHtml(res.reply).replace(/\n/g,'<br>')}
+      </div>
+    </div>`;
+  } catch (e) {
+    document.getElementById('typing-indicator')?.remove();
+    msgsDiv.innerHTML += `<div class="chat-msg agent">
+      <div class="avatar">❌</div>
+      <div class="bubble" style="border-color:var(--red)">对话失败: ${escapeHtml(e.message)}<br><small>提示：请确认该Agent已配置模型预设（在"模型预设"页签创建预设后，在Agent管理中为其分配）</small></div>
+    </div>`;
+  }
+
+  msgsDiv.scrollTop = msgsDiv.scrollHeight;
+  document.getElementById('chat-send-btn').disabled = false;
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// Init
+loadOverview();
+loadChatAgents();
+</script>
+</body>
+</html>

@@ -103,6 +103,18 @@ async def create_meeting(data: MeetingCreateRequest, db: AsyncSession = Depends(
     return {**_meeting_to_dict(meeting), "message": "会议已创建"}
 
 
+@router.get("/active")
+async def list_active_meetings():
+    engines = meeting_protocol_registry._engines
+    return {
+        "active_count": len(engines),
+        "meetings": [
+            {"meeting_id": str(mid), **eng.to_dict()}
+            for mid, eng in engines.items()
+        ],
+    }
+
+
 @router.get("/{meeting_id}")
 async def get_meeting(meeting_id: str, db: AsyncSession = Depends(get_db)):
     svc = MeetingOrchestrator(db)
@@ -247,18 +259,6 @@ async def get_live_state(meeting_id: str):
     if not engine:
         raise HTTPException(status_code=404, detail="会议未在进行中")
     return engine.to_dict()
-
-
-@router.get("/active")
-async def list_active_meetings():
-    engines = meeting_protocol_registry._engines
-    return {
-        "active_count": len(engines),
-        "meetings": [
-            {"meeting_id": str(mid), **eng.to_dict()}
-            for mid, eng in engines.items()
-        ],
-    }
 
 
 def _meeting_to_dict(meeting) -> dict:

@@ -155,12 +155,12 @@ class MeetingProtocolEngine:
 
     def check_stalemate(self) -> bool:
         """Check if recent rounds are too similar"""
-        if len(self._content_history) < self.stalemate_threshold + 1:
+        if len(self._content_history) < self.stalemate_threshold:
             return False
         recent = self._content_history[-self.stalemate_threshold:]
         hashes = [hashlib.md5(c.encode()).hexdigest()[:8] for c in recent]
-        # Simple check: if any hash repeats in recent rounds
-        return len(set(hashes)) < len(hashes) - 1
+        # Stalemate when the last N rounds are all identical
+        return len(set(hashes)) < 2
 
     def should_continue(self) -> bool:
         """Determine if meeting should continue"""

@@ -1,3 +1,4 @@
+import asyncio
 import json
 import uuid
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -59,22 +60,34 @@ async def meeting_live(websocket: WebSocket, meeting_id: str):
     })
 
     # Subscribe to message bus for this viewer
-    queue = await engine.bus.subscribe(uuid.uuid4())  # ephemeral viewer
+    viewer_id = uuid.uuid4()  # ephemeral viewer
+    queue = await engine.bus.subscribe(viewer_id)
 
-    try:
+    async def forward():
         while True:
-            # Read from message bus and forward
             msg = await queue.get()
-            await websocket.send_json({
-                "type": msg.message_type.value,
-                "sender": str(msg.sender_agent_id),
-                "content": msg.content,
-                "turn": msg.turn_number,
-                "metadata": msg.metadata,
-                "timestamp": msg.timestamp.isoformat(),
-            })
+            try:
+                await websocket.send_json({
+                    "type": msg.message_type.value,
+                    "sender": str(msg.sender_agent_id),
+                    "content": msg.content,
+                    "turn": msg.turn_number,
+                    "metadata": msg.metadata,
+                    "timestamp": msg.timestamp.isoformat(),
+                })
+            except Exception:
+                break
+
+    sender = asyncio.create_task(forward())
+    try:
+        # Watch the socket so a client disconnect is noticed right away
+        while True:
+            message = await websocket.receive()
+            if message["type"] == "websocket.disconnect":
+                break
     except WebSocketDisconnect:
         pass
     finally:
+        sender.cancel()
         manager.disconnect(mid, websocket)
-        await engine.bus.unsubscribe(uuid.uuid4())
+        await engine.bus.unsubscribe(viewer_id)

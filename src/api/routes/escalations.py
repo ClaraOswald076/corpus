@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 from src.api.deps import get_db
+from src.models.escalation import EscalationEvent
 from src.services.escalation_engine import EscalationEngine, EscalationReason, EscalationResolution
 
 router = APIRouter()
@@ -79,7 +80,7 @@ async def resolve_escalation(escalation_id: str, data: EscalationResolveRequest,
 
 @router.get("/{escalation_id}")
 async def get_escalation(escalation_id: str, db: AsyncSession = Depends(get_db)):
-    event = await db.get(__import__("src.models.escalation").EscalationEvent, uuid.UUID(escalation_id))
+    event = await db.get(EscalationEvent, uuid.UUID(escalation_id))
     if not event:
         raise HTTPException(status_code=404, detail="升级事件不存在")
     return _event_to_dict(event)

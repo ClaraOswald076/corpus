@@ -37,6 +37,13 @@ class MeetingProtocolEngine:
             f"会议开始。类型: {self.meeting_type.value}",
         )
 
+    @staticmethod
+    def _has_supplement(response: str) -> bool:
+        # "有补充" is a substring of "没有补充", so match 补充 and exclude negations
+        if "补充" not in response:
+            return False
+        return not any(neg in response for neg in ("没有", "无", "不再", "无需"))
+
     async def adjourn(self) -> bool:
         """Run pre-termination poll, return True if all confirmed"""
         if not self.bus:
@@ -46,6 +53,7 @@ class MeetingProtocolEngine:
         for pid in self.participant_ids:
             if pid == self.chair_agent_id:
                 continue
+            poll_started_at = datetime.now(timezone.utc)
             poll_msg = MeetingMessage(
                 message_type=MessageType.POLL_QUERY,
                 sender_agent_id=self.chair_agent_id or self.secretary_agent_id,
@@ -57,10 +65,10 @@ class MeetingProtocolEngine:
             queue = await self.bus.subscribe(pid)
             try:
                 response = await asyncio.wait_for(
-                    self._wait_for_poll_response(queue, pid),
+                    self._wait_for_poll_response(queue, pid, poll_started_at),
                     timeout=settings.meeting_poll_timeout_per_agent_seconds,
                 )
-                if response and "有补充" in response:
+                if response and self._has_supplement(response):
                     all_confirmed = False
             except asyncio.TimeoutError:
                 pass  # Treat timeout as "no supplement"
@@ -74,10 +82,12 @@ class MeetingProtocolEngine:
             )
         return all_confirmed
 
-    async def _wait_for_poll_response(self, queue: asyncio.Queue, agent_id: uuid.UUID) -> str | None:
+    async def _wait_for_poll_response(self, queue: asyncio.Queue, agent_id: uuid.UUID, since: datetime) -> str | None:
         while True:
             msg = await queue.get()
-            if msg.message_type == MessageType.POLL_RESPONSE and msg.sender_agent_id == agent_id:
+            if (msg.message_type == MessageType.POLL_RESPONSE
+                    and msg.sender_agent_id == agent_id
+                    and msg.timestamp >= since):
                 return msg.content
             if msg.message_type == MessageType.MEETING_ADJOURNED:
                 return None
@@ -145,12 +155,12 @@ class MeetingProtocolEngine:
 
     def check_stalemate(self) -> bool:
         """Check if recent rounds are too similar"""
-        if len(self._content_history) < self.stalemate_threshold + 1:
+        if len(self._content_history) < self.stalemate_threshold:
             return False
         recent = self._content_history[-self.stalemate_threshold:]
         hashes = [hashlib.md5(c.encode()).hexdigest()[:8] for c in recent]
-        # Simple check: if any hash repeats in recent rounds
-        return len(set(hashes)) < len(hashes) - 1
+        # Stalemate when the last N rounds are all identical
+        return len(set(hashes)) < 2
 
     def should_continue(self) -> bool:
         """Determine if meeting should continue"""

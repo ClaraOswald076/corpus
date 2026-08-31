@@ -111,7 +111,12 @@ class LiteLLMClient:
             tt = getattr(usage, "total_tokens", pt + ct)
         else:
             pt = ct = tt = 0
-        cost = litellm.cost_per_token(model_str, pt, ct) if tt > 0 else 0.0
+        if tt > 0:
+            # cost_per_token 返回 (prompt_cost, completion_cost) 元组
+            prompt_cost, completion_cost = litellm.cost_per_token(model_str, pt, ct)
+            cost = prompt_cost + completion_cost
+        else:
+            cost = 0.0
         return LLMCallResult(
             content=response.choices[0].message.content or "", model=model_str,
             prompt_tokens=pt, completion_tokens=ct, total_tokens=tt,

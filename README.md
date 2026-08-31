@@ -71,7 +71,7 @@ pip install sqlalchemy aiosqlite alembic litellm fastapi uvicorn typer \
     pydantic pydantic-settings cryptography pyyaml httpx websockets
 
 # 2. 配置
-cp .env.example .env   # 填入 FERNET_KEY
+cp .env.example .env   # 填入 FERNET_KEY（DATABASE_URL 保持默认即可）
 
 # 3. 初始化
 python -m src.cli.main init          # 创建组织架构

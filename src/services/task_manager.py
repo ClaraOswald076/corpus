@@ -178,21 +178,11 @@ class TaskManagerService:
         return await self.transition_status(task_id, TaskStatus.COMPLETED, actor)
 
     async def mark_failed(self, task_id: uuid.UUID, error_message: str = "", actor: str = "system") -> Task:
-        task = await self.repo.get(task_id)
-        if not task:
-            raise TaskNotFoundError(f"任务不存在: {task_id}")
-        task.status = TaskStatus.FAILED.value
-        task.completed_at = datetime.now(timezone.utc)
-        await self._audit_status_change(task, TaskStatus.FAILED, actor)
-        return await self.repo.update(task)
+        # 与其他标记方法一致走状态机校验，禁止改写 completed/cancelled 终态
+        return await self.transition_status(task_id, TaskStatus.FAILED, actor)
 
     async def mark_needs_clarification(self, task_id: uuid.UUID, reason: str = "", actor: str = "system") -> Task:
-        task = await self.repo.get(task_id)
-        if not task:
-            raise TaskNotFoundError(f"任务不存在: {task_id}")
-        task.status = TaskStatus.NEEDS_CLARIFICATION.value
-        await self._audit_status_change(task, TaskStatus.NEEDS_CLARIFICATION, actor)
-        return await self.repo.update(task)
+        return await self.transition_status(task_id, TaskStatus.NEEDS_CLARIFICATION, actor)
 
     async def mark_blocked(self, task_id: uuid.UUID, reason: str = "", actor: str = "system") -> Task:
         deps_satisfied = await self.repo.are_all_dependencies_satisfied(task_id)

@@ -99,7 +99,8 @@ class MeetingRepository:
         return list(reversed(result.scalars().all()))
 
     async def save_minutes(self, meeting_id: uuid.UUID, content: str, summary: str, action_items: list, decisions: list, generated_by: uuid.UUID, approved_by: uuid.UUID | None = None) -> MeetingMinutes:
-        existing = await self.session.get(MeetingMinutes, meeting_id)
+        # meeting_id 是唯一键而非主键，必须按列查询才能找到已有纪要
+        existing = await self.get_minutes(meeting_id)
         if existing:
             existing.content = content
             existing.summary = summary

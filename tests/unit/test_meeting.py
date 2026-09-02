@@ -254,6 +254,39 @@ async def test_minutes_save_and_retrieve(db_session, setup_meeting_agents):
 
 
 @pytest.mark.asyncio
+async def test_minutes_revision(db_session, setup_meeting_agents):
+    agent_ids, dept_id = setup_meeting_agents
+    svc = MeetingOrchestrator(db_session)
+    meeting = await svc.create_meeting(MeetingCreate(
+        meeting_type=MeetingType.COORDINATION, title="纪要修订测试",
+        secretary_agent_id=agent_ids["秘书"], chair_agent_id=agent_ids["主席"],
+        participant_agent_ids=[agent_ids["产品经理"]],
+    ))
+
+    first = await svc.save_minutes(meeting.id,
+        content="第一版纪要", summary="初稿",
+        action_items=[], decisions=[],
+        generated_by=agent_ids["秘书"],
+    )
+    # 二次保存走修订分支而不是新插入一行（meeting_id 唯一约束）
+    revised = await svc.save_minutes(meeting.id,
+        content="第二版纪要", summary="修订稿",
+        action_items=[{"assignee": "产品经理", "task": "跟进"}],
+        decisions=[{"decision": "改用方案B"}],
+        generated_by=agent_ids["秘书"],
+    )
+
+    assert revised.id == first.id
+    assert revised.version == 2
+    assert "第二版" in revised.content
+    assert len(revised.action_items) == 1
+
+    minutes = await svc.get_minutes(meeting.id)
+    assert minutes.id == first.id
+    assert minutes.version == 2
+
+
+@pytest.mark.asyncio
 async def test_meeting_cancellation(db_session, setup_meeting_agents):
     agent_ids, dept_id = setup_meeting_agents
     svc = MeetingOrchestrator(db_session)

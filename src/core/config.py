@@ -26,6 +26,7 @@ class Settings(BaseSettings):
 
     # Security
     fernet_key: str = ""  # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    cors_origins: str = "http://localhost:8080,http://127.0.0.1:8080"  # comma-separated allowlist for cross-origin API access
 
     # Email (for Communications Agent)
     smtp_host: str = ""

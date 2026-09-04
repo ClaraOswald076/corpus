@@ -589,7 +589,7 @@ async function refreshEscalations() {
 
 async function resolveEscalation(id,resolution) {
   if(!resolution) return;
-  await api('/api/escalations/'+id+'/resolve',{method:'PUT',body:JSON.stringify({resolution,resolved_by_agent_id:'00000000-0000-0000-0000-000000000000',notes:''})});
+  await api('/api/escalations/'+id+'/resolve',{method:'PUT',body:JSON.stringify({resolution,notes:''})});
   toast('升级已处理');
   refreshEscalations();
 }

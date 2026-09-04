@@ -1,8 +1,10 @@
+import uuid
+
 import pytest
 from src.models.organization import Department, Agent
 from src.services.task_manager import TaskManagerService, TaskCreate, TaskStatus
 from src.services.escalation_engine import EscalationEngine, EscalationReason, EscalationResolution
-from src.core.exceptions import EscalationLimitExceededError
+from src.core.exceptions import EscalationLimitExceededError, AgentNotFoundError
 
 
 @pytest.fixture
@@ -178,3 +180,73 @@ async def test_needs_clarification_escalation(db_session, setup_hierarchy):
 
     event = await engine.escalate(task.id, EscalationReason.NEEDS_CLARIFICATION)
     assert event.reason == "needs_clarification"
+
+
+@pytest.mark.asyncio
+async def test_escalate_from_department_follows_agent(db_session, setup_hierarchy):
+    ids = setup_hierarchy
+    svc = TaskManagerService(db_session)
+    task = await svc.create_task(TaskCreate(
+        title="无部门任务", created_by="test", assigned_agent_id=ids["worker_id"], max_retries=0,
+    ))
+    await svc.mark_in_progress(task.id)
+    await svc.mark_failed(task.id)
+
+    engine = EscalationEngine(db_session)
+    event = await engine.escalate(task.id, EscalationReason.MAX_RETRIES_EXCEEDED)
+    # from_department_id 取执行 Agent 的部门，而不是编造 uuid
+    assert event.from_agent_id == ids["worker_id"]
+    assert event.from_department_id == ids["dept_id"]
+    assert event.to_department_id == ids["dept_id"]
+
+
+@pytest.mark.asyncio
+async def test_escalate_without_agent_raises(db_session, setup_hierarchy):
+    ids = setup_hierarchy
+    svc = TaskManagerService(db_session)
+    task = await svc.create_task(TaskCreate(
+        title="部门任务", created_by="test", assigned_department_id=ids["dept_id"], max_retries=0,
+    ))
+    await svc.mark_in_progress(task.id)
+    await svc.mark_failed(task.id)
+
+    engine = EscalationEngine(db_session)
+    with pytest.raises(EscalationLimitExceededError):
+        await engine.escalate(task.id, EscalationReason.MAX_RETRIES_EXCEEDED)
+    # 不留任何伪造来源的升级记录
+    assert await engine.get_escalations(task_id=task.id) == []
+
+
+@pytest.mark.asyncio
+async def test_resolve_without_resolver_stores_null(db_session, setup_hierarchy):
+    ids = setup_hierarchy
+    svc = TaskManagerService(db_session)
+    task = await svc.create_task(TaskCreate(
+        title="匿名解决", created_by="test", assigned_agent_id=ids["worker_id"], max_retries=0,
+    ))
+    await svc.mark_in_progress(task.id)
+    await svc.mark_failed(task.id)
+
+    engine = EscalationEngine(db_session)
+    event = await engine.escalate(task.id, EscalationReason.MAX_RETRIES_EXCEEDED)
+    resolved = await engine.resolve_escalation(event.id, EscalationResolution.MODIFY_AND_RETRY, None)
+    assert resolved.resolved_by_agent_id is None
+    assert resolved.resolution == "modify_and_retry"
+
+
+@pytest.mark.asyncio
+async def test_resolve_unknown_resolver_raises(db_session, setup_hierarchy):
+    ids = setup_hierarchy
+    svc = TaskManagerService(db_session)
+    task = await svc.create_task(TaskCreate(
+        title="查无此人", created_by="test", assigned_agent_id=ids["worker_id"], max_retries=0,
+    ))
+    await svc.mark_in_progress(task.id)
+    await svc.mark_failed(task.id)
+
+    engine = EscalationEngine(db_session)
+    event = await engine.escalate(task.id, EscalationReason.MAX_RETRIES_EXCEEDED)
+    with pytest.raises(AgentNotFoundError):
+        await engine.resolve_escalation(
+            event.id, EscalationResolution.MODIFY_AND_RETRY, uuid.uuid4(),
+        )

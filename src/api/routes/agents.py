@@ -158,14 +158,14 @@ class AgentUpdateRequest(BaseModel):
 
 
 @router.put("/{agent_id}")
-async def update_agent(agent_id: str, data: AgentUpdateRequest, db: AsyncSession = Depends(get_db)):
+async def update_agent(agent_id: uuid.UUID, data: AgentUpdateRequest, db: AsyncSession = Depends(get_db)):
     from sqlalchemy import select
     from sqlalchemy.orm import selectinload
     from src.models.organization import Agent as AgentModel
     from src.repositories.agent_repo import ModelPresetRepository
     result = await db.execute(
         select(AgentModel).options(selectinload(AgentModel.department), selectinload(AgentModel.model_preset))
-        .where(AgentModel.id == uuid.UUID(agent_id))
+        .where(AgentModel.id == agent_id)
     )
     agent = result.scalar_one_or_none()
     if not agent:

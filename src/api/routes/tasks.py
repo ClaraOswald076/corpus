@@ -188,9 +188,9 @@ async def add_task_dependency(task_id: str, data: TaskDependencyRequest, db: Asy
 
 
 @router.get("/agent/{agent_id}")
-async def list_agent_tasks(agent_id: str, db: AsyncSession = Depends(get_db)):
+async def list_agent_tasks(agent_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     svc = TaskManagerService(db)
-    tasks = await svc.list_agent_tasks(uuid.UUID(agent_id))
+    tasks = await svc.list_agent_tasks(agent_id)
     return [_task_to_dict(t) for t in tasks]
 
 

@@ -16,11 +16,11 @@ class EscalationResolveRequest(BaseModel):
 
 
 @router.get("/")
-async def list_escalations(task_id: str | None = None, agent_id: str | None = None, db: AsyncSession = Depends(get_db)):
+async def list_escalations(task_id: uuid.UUID | None = None, agent_id: uuid.UUID | None = None, db: AsyncSession = Depends(get_db)):
     engine = EscalationEngine(db)
     events = await engine.get_escalations(
-        task_id=uuid.UUID(task_id) if task_id else None,
-        agent_id=uuid.UUID(agent_id) if agent_id else None,
+        task_id=task_id,
+        agent_id=agent_id,
     )
     return [_event_to_dict(e) for e in events]
 

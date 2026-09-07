@@ -2,6 +2,7 @@ import asyncio
 from datetime import datetime, timezone
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.database import async_session_factory
+from src.core.timeutils import as_aware_utc
 from src.repositories.task_repo import TaskRepository
 from src.services.escalation_engine import EscalationEngine, EscalationReason
 from src.services.task_manager import TaskStatus
@@ -40,7 +41,7 @@ class TaskWatchdog:
             now = datetime.now(timezone.utc)
             for task in in_progress_tasks:
                 if task.timeout_seconds and task.started_at:
-                    elapsed = (now - task.started_at).total_seconds()
+                    elapsed = (now - as_aware_utc(task.started_at)).total_seconds()
                     if elapsed > task.timeout_seconds:
                         task.status = TaskStatus.FAILED.value
                         await repo.update(task)
@@ -54,7 +55,7 @@ class TaskWatchdog:
             for task in blocked_tasks:
                 deps_satisfied = await repo.are_all_dependencies_satisfied(task.id)
                 if not deps_satisfied and task.started_at:
-                    blocked_hours = (now - task.started_at).total_seconds() / 3600
+                    blocked_hours = (now - as_aware_utc(task.started_at)).total_seconds() / 3600
                     if blocked_hours > 24:  # Blocked for more than a day
                         try:
                             await engine.escalate(task.id, EscalationReason.BLOCKED_DEPENDENCY)

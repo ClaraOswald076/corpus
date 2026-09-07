@@ -11,6 +11,7 @@ from src.repositories.agent_repo import AgentRepository
 from src.services.task_manager import TaskManagerService, TaskStatus
 from src.core.config import settings
 from src.core.exceptions import TaskNotFoundError, AgentNotFoundError, EscalationLimitExceededError
+from src.core.timeutils import as_aware_utc
 
 
 class EscalationReason(StrEnum):
@@ -97,7 +98,7 @@ class EscalationEngine:
         # Check cooldown
         recent = await self._get_recent_escalation(task_id)
         if recent:
-            elapsed = (datetime.now(timezone.utc) - recent.created_at).total_seconds() / 60
+            elapsed = (datetime.now(timezone.utc) - as_aware_utc(recent.created_at)).total_seconds() / 60
             if elapsed < settings.task_escalation_cooldown_minutes:
                 return recent  # Still in cooldown
 

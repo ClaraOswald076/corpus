@@ -178,3 +178,21 @@ async def test_needs_clarification_escalation(db_session, setup_hierarchy):
 
     event = await engine.escalate(task.id, EscalationReason.NEEDS_CLARIFICATION)
     assert event.reason == "needs_clarification"
+
+
+@pytest.mark.asyncio
+async def test_escalation_cooldown_after_reload(db_session, setup_hierarchy):
+    """Cooldown must survive a fresh DB read (SQLite returns naive created_at)."""
+    ids = setup_hierarchy
+    svc = TaskManagerService(db_session)
+    task = await svc.create_task(TaskCreate(
+        title="冷却重读", created_by="test", assigned_agent_id=ids["worker_id"], max_retries=0,
+    ))
+    await svc.mark_in_progress(task.id)
+    await svc.mark_failed(task.id)
+
+    engine = EscalationEngine(db_session)
+    event1 = await engine.escalate(task.id, EscalationReason.MAX_RETRIES_EXCEEDED)
+    db_session.expire(event1)  # force the next read to come from SQLite (naive)
+    event2 = await engine.escalate(task.id, EscalationReason.MAX_RETRIES_EXCEEDED)
+    assert event2.id == event1.id

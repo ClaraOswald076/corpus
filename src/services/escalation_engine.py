@@ -176,7 +176,10 @@ class EscalationEngine:
                 await self.escalate(task.id, EscalationReason.CRITICAL_FAILURE, resolved_by_agent_id)
 
             case EscalationResolution.RESOLVE_DIRECTLY:
-                await self.task_svc.transition_status(task.id, TaskStatus.IN_PROGRESS, f"agent:{resolved_by_agent_id}")
+                # Terminal decision: the superior handled the task, so it must
+                # not stay in a working state where the watchdog can re-fail
+                # and re-escalate an already-resolved task.
+                await self.task_svc.transition_status(task.id, TaskStatus.COMPLETED, f"agent:{resolved_by_agent_id}")
 
             case EscalationResolution.RETURN_TO_ORIGINATOR:
                 await self.task_svc.transition_status(task.id, TaskStatus.PENDING, f"agent:{resolved_by_agent_id}")

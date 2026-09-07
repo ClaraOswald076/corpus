@@ -32,9 +32,9 @@ class TaskPriority(StrEnum):
 VALID_TRANSITIONS: dict[TaskStatus, set[TaskStatus]] = {
     TaskStatus.PENDING: {TaskStatus.IN_PROGRESS, TaskStatus.CANCELLED},
     TaskStatus.IN_PROGRESS: {TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.NEEDS_CLARIFICATION, TaskStatus.BLOCKED, TaskStatus.CANCELLED},
-    TaskStatus.FAILED: {TaskStatus.PENDING, TaskStatus.IN_PROGRESS, TaskStatus.CANCELLED, TaskStatus.NEEDS_CLARIFICATION},
-    TaskStatus.NEEDS_CLARIFICATION: {TaskStatus.PENDING, TaskStatus.IN_PROGRESS, TaskStatus.CANCELLED},
-    TaskStatus.BLOCKED: {TaskStatus.PENDING, TaskStatus.IN_PROGRESS, TaskStatus.CANCELLED},
+    TaskStatus.FAILED: {TaskStatus.PENDING, TaskStatus.IN_PROGRESS, TaskStatus.COMPLETED, TaskStatus.CANCELLED, TaskStatus.NEEDS_CLARIFICATION},
+    TaskStatus.NEEDS_CLARIFICATION: {TaskStatus.PENDING, TaskStatus.IN_PROGRESS, TaskStatus.COMPLETED, TaskStatus.CANCELLED},
+    TaskStatus.BLOCKED: {TaskStatus.PENDING, TaskStatus.IN_PROGRESS, TaskStatus.COMPLETED, TaskStatus.CANCELLED},
     TaskStatus.CANCELLED: set(),
     TaskStatus.COMPLETED: set(),
 }

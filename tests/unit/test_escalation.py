@@ -178,3 +178,25 @@ async def test_needs_clarification_escalation(db_session, setup_hierarchy):
 
     event = await engine.escalate(task.id, EscalationReason.NEEDS_CLARIFICATION)
     assert event.reason == "needs_clarification"
+
+
+@pytest.mark.asyncio
+async def test_resolve_directly_completes_task(db_session, setup_hierarchy):
+    """RESOLVE_DIRECTLY is a terminal decision: the task must end up
+    completed, not stranded in in_progress where the watchdog can
+    re-fail and re-escalate it."""
+    ids = setup_hierarchy
+    svc = TaskManagerService(db_session)
+    task = await svc.create_task(TaskCreate(
+        title="直接解决任务", created_by="test", assigned_agent_id=ids["worker_id"], max_retries=0,
+    ))
+    await svc.mark_in_progress(task.id)
+    await svc.mark_failed(task.id)
+
+    engine = EscalationEngine(db_session)
+    event = await engine.escalate(task.id, EscalationReason.MAX_RETRIES_EXCEEDED)
+    await engine.resolve_escalation(event.id, EscalationResolution.RESOLVE_DIRECTLY, ids["superior_id"], "我直接处理完了")
+
+    resolved_task = await svc.repo.get(task.id)
+    assert resolved_task.status == TaskStatus.COMPLETED.value
+    assert resolved_task.completed_at is not None

@@ -1,3 +1,4 @@
+import re
 import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,8 +12,24 @@ from src.core.config import settings
 router = APIRouter()
 
 
+def _extract_dispatch_targets(message: str) -> list[str]:
+    """提取每个 `[任务分派]` 块内『发送至：』的目标名。
+
+    按 marker 切块后只在块内找尾标：多 marker 且无尾标的消息若用
+    `[任务分派][\\s\\S]*?发送至` 全串懒惰扫描，回溯耗时随消息长度平方增长，
+    会在 async 处理器里冻结事件循环。
+    """
+    targets = []
+    starts = [m.start() for m in re.finditer("[任务分派]", message)]
+    for i, start in enumerate(starts):
+        block_end = starts[i + 1] if i + 1 < len(starts) else len(message)
+        tail = re.search(r'发送至[：:]\s*\*{0,2}(.+?)\*{0,2}', message[start:block_end])
+        if tail:
+            targets.append(tail.group(1))
+    return targets
+
+
 async def _auto_create_tasks_from_message(db, message: str, speaker) -> str:
-    import re
     from src.services.task_manager import TaskManagerService, TaskCreate, TaskPriority
     from src.repositories.agent_repo import AgentRepository
     from src.repositories.organization_repo import DepartmentRepository
@@ -23,7 +40,7 @@ async def _auto_create_tasks_from_message(db, message: str, speaker) -> str:
     created = []
 
     # Pattern 1: `[任务分派]` → 发送至：**Agent名**
-    pattern1 = re.findall(r'\[任务分派\][\s\S]*?发送至[：:]\s*\*{0,2}(.+?)\*{0,2}', message)
+    pattern1 = _extract_dispatch_targets(message)
     if pattern1:
         for target_name in pattern1:
             target_name = target_name.strip()

@@ -146,6 +146,18 @@ class MeetingOrchestrator:
         return await self.repo.update(meeting)
 
     async def add_statement(self, meeting_id: uuid.UUID, speaker_id: uuid.UUID, content: str, statement_type: str = "general", reply_to_id: uuid.UUID | None = None, token_count: int | None = None):
+        meeting = await self.repo.get(meeting_id)
+        if not meeting:
+            raise MeetingNotFoundError(f"会议不存在: {meeting_id}")
+
+        # adjourned/cancelled/minutes_pending/completed 都是终态：会后写入的发言会混进纪要
+        if meeting.status != MeetingStatus.IN_PROGRESS.value:
+            raise PlatformError(f"会议当前状态不允许发言: {meeting.status}")
+
+        participants = await self.repo.get_participants(meeting_id)
+        if speaker_id not in {p.agent_id for p in participants}:
+            raise PlatformError(f"发言人不在与会者名单中: {speaker_id}")
+
         engine = meeting_protocol_registry.get(meeting_id)
         if engine:
             await engine.record_statement(speaker_id, content, statement_type, token_count)

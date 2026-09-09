@@ -6,7 +6,7 @@ from src.meeting.types import MeetingType, MeetingStatus
 from src.meeting.message_bus import MeetingMessageBus, MessageType, MeetingMessage
 from src.meeting.speaker_queue import SpeakerQueue, RequestToSpeak
 from src.meeting.protocol import MeetingProtocolEngine
-from src.core.exceptions import MissingSecretariatError
+from src.core.exceptions import MissingSecretariatError, MeetingNotFoundError, PlatformError
 
 
 @pytest.fixture
@@ -178,6 +178,42 @@ async def test_statement_recording(db_session, setup_meeting_agents):
     assert len(statements) == 2
     assert "A功能" in statements[0].content
     assert "请说明理由" in statements[1].content
+
+
+@pytest.mark.asyncio
+async def test_add_statement_validates_meeting_status_and_speaker(db_session, setup_meeting_agents):
+    agent_ids, dept_id = setup_meeting_agents
+    svc = MeetingOrchestrator(db_session)
+    meeting = await svc.create_meeting(MeetingCreate(
+        meeting_type=MeetingType.COORDINATION, title="发言校验测试",
+        secretary_agent_id=agent_ids["秘书"], chair_agent_id=agent_ids["主席"],
+        participant_agent_ids=[agent_ids["产品经理"]],
+    ))
+
+    # meeting_id must exist
+    with pytest.raises(MeetingNotFoundError):
+        await svc.add_statement(uuid.uuid4(), agent_ids["产品经理"], "指向不存在的会议")
+
+    # scheduled: the meeting has not started yet
+    with pytest.raises(PlatformError):
+        await svc.add_statement(meeting.id, agent_ids["产品经理"], "会议还没开始")
+
+    await svc.start_meeting(meeting.id)
+
+    # speaker must be a participant (研究员 is not on the list)
+    with pytest.raises(PlatformError):
+        await svc.add_statement(meeting.id, agent_ids["研究员"], "我不在与会名单里")
+
+    await svc.add_statement(meeting.id, agent_ids["产品经理"], "正常发言")
+
+    # adjourned is terminal: no more statements afterwards
+    await svc.end_meeting(meeting.id)
+    with pytest.raises(PlatformError):
+        await svc.add_statement(meeting.id, agent_ids["产品经理"], "会议已休会")
+
+    statements = await svc.get_statements(meeting.id)
+    assert len(statements) == 1
+    assert statements[0].content == "正常发言"
 
 
 @pytest.mark.asyncio

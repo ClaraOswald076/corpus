@@ -724,7 +724,7 @@ def escalation_resolve(escalation_id: str, resolution: str = typer.Option(..., h
             engine = EscalationEngine(session)
             event = await engine.resolve_escalation(
                 uuid.UUID(escalation_id), EscalationResolution(resolution),
-                agent_id or uuid.uuid4(),
+                agent_id,
             )
             await session.commit()
             typer.echo(f"[OK] 升级已解决: {event.resolution}")

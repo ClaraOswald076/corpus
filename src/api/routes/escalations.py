@@ -11,7 +11,7 @@ router = APIRouter()
 
 class EscalationResolveRequest(BaseModel):
     resolution: str
-    resolved_by_agent_id: str
+    resolved_by_agent_id: str | None = None
     notes: str = ""
 
 
@@ -69,7 +69,7 @@ async def resolve_escalation(escalation_id: str, data: EscalationResolveRequest,
         event = await engine.resolve_escalation(
             uuid.UUID(escalation_id),
             EscalationResolution(data.resolution),
-            uuid.UUID(data.resolved_by_agent_id),
+            uuid.UUID(data.resolved_by_agent_id) if data.resolved_by_agent_id else None,
             data.notes,
         )
         await db.commit()

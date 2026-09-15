@@ -101,22 +101,29 @@ class EscalationEngine:
             if elapsed < settings.task_escalation_cooldown_minutes:
                 return recent  # Still in cooldown
 
-        from_agent_id = task.assigned_agent_id or triggered_by_agent_id
-        from_dept_id = task.assigned_department_id
+        # The escalation must be attributable to a real agent — the schema has
+        # NOT NULL FKs here and a fabricated uuid would silently dangle.
+        from_agent = None
+        if task.assigned_agent_id or triggered_by_agent_id:
+            from_agent = await self.agent_repo.get(task.assigned_agent_id or triggered_by_agent_id)
+        if not from_agent:
+            raise EscalationLimitExceededError(
+                f"任务 {task.task_code} 无归属 Agent 且未指定触发者，无法记录升级来源，请人工介入"
+            )
+        from_agent_id = from_agent.id
+        from_dept_id = from_agent.department_id
 
         # Find the superior agent via reports_to chain
         to_agent_id = None
         to_dept_id = None
-        if from_agent_id:
-            agent = await self.agent_repo.get(from_agent_id)
-            if agent and agent.reports_to_agent_id:
-                to_agent_id = agent.reports_to_agent_id
-                superior = await self.agent_repo.get(to_agent_id)
-                if superior:
-                    to_dept_id = superior.department_id
+        if from_agent.reports_to_agent_id:
+            superior = await self.agent_repo.get(from_agent.reports_to_agent_id)
+            if superior:
+                to_agent_id = superior.id
+                to_dept_id = superior.department_id
 
         # Fallback: escalate to the department head
-        if not to_agent_id and from_dept_id:
+        if not to_agent_id:
             dept_agents = await self.agent_repo.list_by_department(from_dept_id)
             for a in dept_agents:
                 if a.reports_to_agent_id is None and a.is_active:
@@ -133,10 +140,10 @@ class EscalationEngine:
 
         event = EscalationEvent(
             task_id=task_id,
-            from_agent_id=from_agent_id or triggered_by_agent_id or uuid.uuid4(),
-            from_department_id=from_dept_id or uuid.uuid4(),
+            from_agent_id=from_agent_id,
+            from_department_id=from_dept_id,
             to_agent_id=to_agent_id,
-            to_department_id=to_dept_id or uuid.uuid4(),
+            to_department_id=to_dept_id,
             escalation_level=new_level,
             reason=reason.value,
             task_context={
@@ -151,7 +158,7 @@ class EscalationEngine:
         await self.session.flush()
         return event
 
-    async def resolve_escalation(self, escalation_id: uuid.UUID, resolution: EscalationResolution, resolved_by_agent_id: uuid.UUID, notes: str = "") -> EscalationEvent:
+    async def resolve_escalation(self, escalation_id: uuid.UUID, resolution: EscalationResolution, resolved_by_agent_id: uuid.UUID | None = None, notes: str = "") -> EscalationEvent:
         """Superior agent resolves an escalation"""
         event = await self.session.get(EscalationEvent, escalation_id)
         if not event:
@@ -161,28 +168,32 @@ class EscalationEngine:
         if not task:
             raise TaskNotFoundError(f"关联任务不存在: {event.task_id}")
 
+        if resolved_by_agent_id is not None and await self.agent_repo.get(resolved_by_agent_id) is None:
+            raise AgentNotFoundError(f"解决的 Agent 不存在: {resolved_by_agent_id}")
+
         event.resolution = resolution.value
         event.resolved_by_agent_id = resolved_by_agent_id
         event.resolution_notes = notes
         event.resolved_at = datetime.now(timezone.utc)
+        actor = f"agent:{resolved_by_agent_id}" if resolved_by_agent_id else "system"
 
         # Apply resolution
         match resolution:
             case EscalationResolution.MODIFY_AND_RETRY:
                 task.retry_count = 0
-                await self.task_svc.transition_status(task.id, TaskStatus.PENDING, f"agent:{resolved_by_agent_id}")
+                await self.task_svc.transition_status(task.id, TaskStatus.PENDING, actor)
 
             case EscalationResolution.ESCALATE_HIGHER:
                 await self.escalate(task.id, EscalationReason.CRITICAL_FAILURE, resolved_by_agent_id)
 
             case EscalationResolution.RESOLVE_DIRECTLY:
-                await self.task_svc.transition_status(task.id, TaskStatus.IN_PROGRESS, f"agent:{resolved_by_agent_id}")
+                await self.task_svc.transition_status(task.id, TaskStatus.IN_PROGRESS, actor)
 
             case EscalationResolution.RETURN_TO_ORIGINATOR:
-                await self.task_svc.transition_status(task.id, TaskStatus.PENDING, f"agent:{resolved_by_agent_id}")
+                await self.task_svc.transition_status(task.id, TaskStatus.PENDING, actor)
 
             case EscalationResolution.CANCELLED:
-                await self.task_svc.cancel_task(task.id, f"agent:{resolved_by_agent_id}")
+                await self.task_svc.cancel_task(task.id, actor)
 
         await self.session.flush()
         return event

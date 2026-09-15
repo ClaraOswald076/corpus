@@ -82,6 +82,33 @@ async def test_invalid_transition_rejected(db_session, setup_agent):
 
 
 @pytest.mark.asyncio
+async def test_terminal_state_guarded(db_session, setup_agent):
+    agent_id, dept_id = setup_agent
+    svc = TaskManagerService(db_session)
+    task = await svc.create_task(TaskCreate(title="测试", created_by="test"))
+
+    await svc.mark_in_progress(task.id)
+    await svc.mark_completed(task.id)
+    with pytest.raises(InvalidStateTransitionError):
+        # mark_failed 也要走状态机，不允许改写 completed 终态
+        await svc.mark_failed(task.id)
+    assert task.status == "completed"
+
+    cancelled = await svc.create_task(TaskCreate(title="取消", created_by="test"))
+    await svc.mark_in_progress(cancelled.id)
+    await svc.cancel_task(cancelled.id)
+    with pytest.raises(InvalidStateTransitionError):
+        await svc.mark_needs_clarification(cancelled.id, "说不清")
+    assert cancelled.status == "cancelled"
+
+    pending = await svc.create_task(TaskCreate(title="待办", created_by="test"))
+    with pytest.raises(InvalidStateTransitionError):
+        # pending → needs_clarification 不在合法转换表里
+        await svc.mark_needs_clarification(pending.id, "说不清")
+    assert pending.status == "pending"
+
+
+@pytest.mark.asyncio
 async def test_fail_and_retry(db_session, setup_agent):
     agent_id, dept_id = setup_agent
     svc = TaskManagerService(db_session)

@@ -1,4 +1,5 @@
 import asyncio
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.database import async_session_factory, init_db
 from src.models.organization import Department, Agent
@@ -9,6 +10,11 @@ async def seed_default_org():
     await init_db()
 
     async with async_session_factory() as session:
+        dept_count = await session.scalar(select(func.count()).select_from(Department))
+        if dept_count:
+            print("[OK] 组织架构已存在，跳过初始化（如需重建请删除 multi_agent.db 后重试）")
+            return
+
         # T0: CEO办公室
         ceo_office = Department(
             name="CEO办公室",

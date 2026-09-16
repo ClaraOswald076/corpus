@@ -1,5 +1,5 @@
 import pytest
-from src.models.organization import Department
+from src.models.organization import Department, Agent
 from src.services.org_structure import OrgStructureService, DepartmentCreate, OrgTier, DeptType
 from src.core.exceptions import OrganizationConstraintError
 
@@ -128,6 +128,24 @@ async def test_cannot_delete_department_with_children(db_session):
     ))
     with pytest.raises(OrganizationConstraintError):
         await svc.delete_department(dept.id)
+
+
+@pytest.mark.asyncio
+async def test_cannot_delete_department_with_agents(db_session):
+    svc = OrgStructureService(db_session)
+    ceo = await svc.create_department(DepartmentCreate(
+        name="CEO", tier=OrgTier.T0, dept_type=DeptType.CEO_OFFICE,
+    ))
+    dept = await svc.create_department(DepartmentCreate(
+        name="产品部", tier=OrgTier.T1, dept_type=DeptType.DEPARTMENT, parent_id=ceo.id,
+    ))
+    db_session.add(Agent(name="产品Agent", role="执行者", department_id=dept.id, agent_folder_path="agents/pd/a"))
+    await db_session.flush()
+
+    # 辖下有人必须明确拒绝，而不是 IntegrityError 穿透成 500/内部报文
+    with pytest.raises(OrganizationConstraintError, match="请先转移或删除"):
+        await svc.delete_department(dept.id)
+    assert await svc.get_department(dept.id) is not None
 
 
 @pytest.mark.asyncio

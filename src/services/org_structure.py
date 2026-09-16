@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from enum import IntEnum, StrEnum
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.models.organization import Department
+from src.repositories.agent_repo import AgentRepository
 from src.repositories.organization_repo import DepartmentRepository
 from src.core.exceptions import CircularDependencyError, DepartmentNotFoundError, OrganizationConstraintError
 
@@ -181,6 +182,12 @@ class OrgStructureService:
         children = await self.repo.list_children(department_id)
         if children:
             raise OrganizationConstraintError(f"部门 '{dept.name}' 下还有 {len(children)} 个子部门，请先移除子部门")
+
+        # 辖下 agent 不挡道就删：ORM 的 delete 会把已加载子 agent 的 FK 置 NULL，
+        # 撞 NOT NULL 约束炸出来的 IntegrityError 对用户毫无可读性。
+        occupants = await AgentRepository(self.session).list_by_department(department_id)
+        if occupants:
+            raise OrganizationConstraintError(f"部门 '{dept.name}' 下还有 {len(occupants)} 名 agent，请先转移或删除")
 
         await self.repo.delete(dept)
 

@@ -250,3 +250,52 @@ async def test_resolve_unknown_resolver_raises(db_session, setup_hierarchy):
         await engine.resolve_escalation(
             event.id, EscalationResolution.MODIFY_AND_RETRY, uuid.uuid4(),
         )
+
+
+@pytest.mark.asyncio
+async def test_escalate_single_head_department_does_not_target_self(db_session):
+    dept = Department(name="单人部门", org_path="/solo", tier=1, dept_type="department")
+    db_session.add(dept)
+    await db_session.flush()
+
+    head = Agent(name="光杆负责人", role="部门负责人", department_id=dept.id, agent_folder_path="agents/solo/head")
+    db_session.add(head)
+    await db_session.flush()
+
+    svc = TaskManagerService(db_session)
+    task = await svc.create_task(TaskCreate(
+        title="单人部门失败任务", created_by="test", assigned_agent_id=head.id, max_retries=0,
+    ))
+    await svc.mark_in_progress(task.id)
+    await svc.mark_failed(task.id)
+
+    engine = EscalationEngine(db_session)
+    # 兜底选不出第二个人：明确拒绝请人工介入，而不是把升级事件写给自己
+    with pytest.raises(EscalationLimitExceededError):
+        await engine.escalate(task.id, EscalationReason.MAX_RETRIES_EXCEEDED)
+    assert await engine.get_escalations(task_id=task.id) == []
+
+
+@pytest.mark.asyncio
+async def test_escalate_fallback_skips_requester(db_session):
+    dept = Department(name="双人部门", org_path="/duo", tier=1, dept_type="department")
+    db_session.add(dept)
+    await db_session.flush()
+
+    head_a = Agent(name="负责人甲", role="部门负责人", department_id=dept.id, agent_folder_path="agents/duo/a")
+    head_b = Agent(name="负责人乙", role="部门负责人", department_id=dept.id, agent_folder_path="agents/duo/b")
+    db_session.add_all([head_a, head_b])
+    await db_session.flush()
+
+    svc = TaskManagerService(db_session)
+    task = await svc.create_task(TaskCreate(
+        title="双人部门失败任务", created_by="test", assigned_agent_id=head_a.id, max_retries=0,
+    ))
+    await svc.mark_in_progress(task.id)
+    await svc.mark_failed(task.id)
+
+    engine = EscalationEngine(db_session)
+    event = await engine.escalate(task.id, EscalationReason.MAX_RETRIES_EXCEEDED)
+    # 兜底跳过发起人本人，落到同部门另一位负责人头上
+    assert event.from_agent_id == head_a.id
+    assert event.to_agent_id == head_b.id

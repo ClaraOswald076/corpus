@@ -118,15 +118,18 @@ class EscalationEngine:
         to_dept_id = None
         if from_agent.reports_to_agent_id:
             superior = await self.agent_repo.get(from_agent.reports_to_agent_id)
-            if superior:
+            # Escalating to oneself is a no-op that burns escalation depth;
+            # treat it as having no superior at all.
+            if superior and superior.id != from_agent_id:
                 to_agent_id = superior.id
                 to_dept_id = superior.department_id
 
-        # Fallback: escalate to the department head
+        # Fallback: escalate to the department head, excluding the originating
+        # agent himself — a solo-head department has nobody to escalate to.
         if not to_agent_id:
             dept_agents = await self.agent_repo.list_by_department(from_dept_id)
             for a in dept_agents:
-                if a.reports_to_agent_id is None and a.is_active:
+                if a.id != from_agent_id and a.reports_to_agent_id is None and a.is_active:
                     to_agent_id = a.id
                     to_dept_id = a.department_id
                     break

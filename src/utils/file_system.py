@@ -1,17 +1,34 @@
 import os
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from src.core.config import settings
+from src.core.exceptions import PlatformError
+
+# slug 只保留字母/数字/下划线/连字符，路径分隔符与 .. 一律折叠成 _，防止目录逃逸
+_SLUG_UNSAFE = re.compile(r"[^\w-]+", re.UNICODE)
+
+
+def _slugify(name: str) -> str:
+    return _SLUG_UNSAFE.sub("_", name.lower()).strip("_") or "unnamed"
+
+
+def _ensure_within_agents_root(folder: Path):
+    resolved = folder.resolve()
+    root = settings.agents_root.resolve()
+    if resolved != root and root not in resolved.parents:
+        raise PlatformError(f"agent 目录越界，拒绝操作: {resolved}")
 
 
 def get_agent_folder_path(department_name: str, agent_name: str) -> Path:
-    dept_slug = department_name.lower().replace(" ", "_").replace("/", "_")
-    agent_slug = agent_name.lower().replace(" ", "_").replace("/", "_")
+    dept_slug = _slugify(department_name)
+    agent_slug = _slugify(agent_name)
     return settings.agents_root / dept_slug / agent_slug
 
 
 def create_agent_folder(department_name: str, agent_name: str, soul_content: str = "", memory_content: str = "") -> Path:
     folder = get_agent_folder_path(department_name, agent_name)
+    _ensure_within_agents_root(folder)
     folder.mkdir(parents=True, exist_ok=True)
     workspace = folder / settings.workspace_dir_name
     workspace.mkdir(exist_ok=True)
@@ -71,5 +88,6 @@ def get_soul_last_modified(agent_folder_path: str) -> datetime | None:
 def delete_agent_folder(agent_folder_path: str):
     import shutil
     path = Path(agent_folder_path)
+    _ensure_within_agents_root(path)
     if path.exists():
         shutil.rmtree(path)

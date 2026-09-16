@@ -18,12 +18,15 @@ def _extract_dispatch_targets(message: str) -> list[str]:
     按 marker 切块后只在块内找尾标：多 marker 且无尾标的消息若用
     `[任务分派][\\s\\S]*?发送至` 全串懒惰扫描，回溯耗时随消息长度平方增长，
     会在 async 处理器里冻结事件循环。
+
+    尾标捕获到闭合 `**`、空白或串尾为止：懒惰捕获组配可空尾饰会把
+    目标名截成单个字符，get_by_name 永远查无此人。
     """
     targets = []
     starts = [m.start() for m in re.finditer("[任务分派]", message)]
     for i, start in enumerate(starts):
         block_end = starts[i + 1] if i + 1 < len(starts) else len(message)
-        tail = re.search(r'发送至[：:]\s*\*{0,2}(.+?)\*{0,2}', message[start:block_end])
+        tail = re.search(r'发送至[：:]\s*\*{0,2}(.+?)(?:\*{2}|\s|$)', message[start:block_end])
         if tail:
             targets.append(tail.group(1))
     return targets

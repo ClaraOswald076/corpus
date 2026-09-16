@@ -39,7 +39,11 @@ manager = ConnectionManager()
 
 @router.websocket("/{meeting_id}/live")
 async def meeting_live(websocket: WebSocket, meeting_id: str):
-    mid = uuid.UUID(meeting_id)
+    try:
+        mid = uuid.UUID(meeting_id)
+    except ValueError:
+        await websocket.close(code=1008, reason="非法的会议 ID")
+        return
 
     engine = meeting_protocol_registry.get(mid)
     if not engine or not engine.bus:

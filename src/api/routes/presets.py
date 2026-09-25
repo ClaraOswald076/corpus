@@ -1,7 +1,7 @@
 import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from src.api.deps import get_db
 from src.services.model_preset import ModelPresetService, ModelPresetCreate
 
@@ -19,6 +19,20 @@ class PresetCreateRequest(BaseModel):
     cost_per_1k_output: float = 0.0
     max_retries: int = 3
     retry_delay_sec: float = 2.0
+
+    @field_validator("max_retries")
+    @classmethod
+    def validate_max_retries(cls, v: int) -> int:
+        if not 0 <= v <= 10:
+            raise ValueError("max_retries 必须在 0~10 之间")
+        return v
+
+    @field_validator("retry_delay_sec")
+    @classmethod
+    def validate_retry_delay_sec(cls, v: float) -> float:
+        if not 0 <= v <= 300:
+            raise ValueError("retry_delay_sec 必须在 0~300 秒之间")
+        return v
 
 
 @router.get("/")

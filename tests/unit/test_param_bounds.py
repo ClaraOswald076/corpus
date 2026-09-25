@@ -71,23 +71,21 @@ def test_preset_create_rejects_out_of_range_params(overrides):
     assert r.status_code == 422, f"{overrides} 应被 422 拒绝，实际 {r.status_code}"
 
 
-def test_agent_accepts_boundary_values():
+def test_agent_accepts_boundary_values(api_client):
     tag = uuid.uuid4().hex[:6]
-    with TestClient(app) as c:
-        dept = c.post("/api/org/", json={"name": f"边界部-{tag}", "tier": 0, "dept_type": "ceo_office"}).json()["id"]
-        r = c.post("/api/agents/", json={
-            "name": f"边界员-{tag}", "role": "工程师", "department_id": dept,
-            "max_retries": 10, "temperature": 2.0, "max_tokens": 1000000, "max_memory_tokens": 10000000,
-        })
-        assert r.status_code == 201, r.text
-        got = c.get(f"/api/agents/{r.json()['id']}").json()
-        assert got["temperature"] == 2.0
-        assert got["max_tokens"] == 1000000
-        assert got["max_memory_tokens"] == 10000000
+    dept = api_client.post("/api/org/", json={"name": f"边界部-{tag}", "tier": 0, "dept_type": "ceo_office"}).json()["id"]
+    r = api_client.post("/api/agents/", json={
+        "name": f"边界员-{tag}", "role": "工程师", "department_id": dept,
+        "max_retries": 10, "temperature": 2.0, "max_tokens": 1000000, "max_memory_tokens": 10000000,
+    })
+    assert r.status_code == 201, r.text
+    got = api_client.get(f"/api/agents/{r.json()['id']}").json()
+    assert got["temperature"] == 2.0
+    assert got["max_tokens"] == 1000000
+    assert got["max_memory_tokens"] == 10000000
 
 
-def test_task_accepts_boundary_values():
-    with TestClient(app) as c:
-        r = c.post("/api/tasks/", json={"title": "边界任务", "max_retries": 10, "timeout_seconds": 2592000})
-        assert r.status_code == 201, r.text
-        assert r.json()["max_retries"] == 10
+def test_task_accepts_boundary_values(api_client):
+    r = api_client.post("/api/tasks/", json={"title": "边界任务", "max_retries": 10, "timeout_seconds": 2592000})
+    assert r.status_code == 201, r.text
+    assert r.json()["max_retries"] == 10

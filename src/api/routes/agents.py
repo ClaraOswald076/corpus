@@ -1,7 +1,7 @@
 import uuid
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from src.api.deps import get_db
 from src.services.agent_lifecycle import AgentLifecycleService, AgentCreate
 
@@ -24,6 +24,34 @@ class AgentCreateRequest(BaseModel):
     reports_to: str = ""  # Alternative: resolve by name
     soul_content: str = ""
     memory_content: str = ""
+
+    @field_validator("max_retries")
+    @classmethod
+    def validate_max_retries(cls, v: int) -> int:
+        if not 0 <= v <= 10:
+            raise ValueError("max_retries 必须在 0~10 之间")
+        return v
+
+    @field_validator("temperature")
+    @classmethod
+    def validate_temperature(cls, v: float) -> float:
+        if not 0 <= v <= 2:
+            raise ValueError("temperature 必须在 0~2 之间")
+        return v
+
+    @field_validator("max_tokens")
+    @classmethod
+    def validate_max_tokens(cls, v: int) -> int:
+        if not 1 <= v <= 1000000:
+            raise ValueError("max_tokens 必须在 1~1000000 之间")
+        return v
+
+    @field_validator("max_memory_tokens")
+    @classmethod
+    def validate_max_memory_tokens(cls, v: int) -> int:
+        if not 1 <= v <= 10000000:
+            raise ValueError("max_memory_tokens 必须在 1~10000000 之间")
+        return v
 
 
 class AgentUpdateSoulRequest(BaseModel):
@@ -155,6 +183,27 @@ class AgentUpdateRequest(BaseModel):
     max_memory_tokens: int | None = None
     is_active: bool | None = None
     system_prompt: str | None = None
+
+    @field_validator("temperature")
+    @classmethod
+    def validate_temperature(cls, v: float | None) -> float | None:
+        if v is not None and not 0 <= v <= 2:
+            raise ValueError("temperature 必须在 0~2 之间")
+        return v
+
+    @field_validator("max_tokens")
+    @classmethod
+    def validate_max_tokens(cls, v: int | None) -> int | None:
+        if v is not None and not 1 <= v <= 1000000:
+            raise ValueError("max_tokens 必须在 1~1000000 之间")
+        return v
+
+    @field_validator("max_memory_tokens")
+    @classmethod
+    def validate_max_memory_tokens(cls, v: int | None) -> int | None:
+        if v is not None and not 1 <= v <= 10000000:
+            raise ValueError("max_memory_tokens 必须在 1~10000000 之间")
+        return v
 
 
 @router.put("/{agent_id}")

@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from src.api.deps import get_db
 from src.services.task_manager import TaskManagerService, TaskCreate, TaskDecomposition, TaskStatus, TaskPriority
 
@@ -23,6 +23,20 @@ class TaskCreateRequest(BaseModel):
     max_retries: int | None = None
     tags: list[str] = []
     created_by: str = "user"
+
+    @field_validator("max_retries")
+    @classmethod
+    def validate_max_retries(cls, v: int | None) -> int | None:
+        if v is not None and not 0 <= v <= 10:
+            raise ValueError("max_retries 必须在 0~10 之间")
+        return v
+
+    @field_validator("timeout_seconds")
+    @classmethod
+    def validate_timeout_seconds(cls, v: int | None) -> int | None:
+        if v is not None and not 1 <= v <= 2592000:
+            raise ValueError("timeout_seconds 必须在 1~2592000 秒之间")
+        return v
 
 
 class TaskDecomposeRequest(BaseModel):

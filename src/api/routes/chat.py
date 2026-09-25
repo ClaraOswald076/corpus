@@ -168,7 +168,9 @@ async def chat_with_agent(data: ChatRequest, db: AsyncSession = Depends(get_db))
 
     result = await bot.think(full_message)
     if not result.success:
-        raise HTTPException(status_code=500, detail=f"LLM调用失败: {result.error_message}")
+        # error_message 是 litellm/OpenAI SDK 的异常原文，含模型串、密钥片段等内部信息，只留服务端
+        print(f"[Chat] {agent.name} LLM 调用失败: {result.error_message}")
+        raise HTTPException(status_code=500, detail="LLM 调用失败，请检查模型预设与网络配置后重试")
 
     bot.remember(f"[对话] 用户: {data.message[:200]}\n回复: {result.content[:200]}")
 

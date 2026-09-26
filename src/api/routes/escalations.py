@@ -1,11 +1,15 @@
 import uuid
+import logging
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 from src.api.deps import get_db
 from src.models.escalation import EscalationEvent
 from src.services.escalation_engine import EscalationEngine, EscalationReason, EscalationResolution
+from src.core.exceptions import PlatformError
 
+
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -40,8 +44,15 @@ async def escalate_task(task_id: str, reason: str = "max_retries_exceeded", db: 
     try:
         event = await engine.escalate(uuid.UUID(task_id), EscalationReason(reason))
         await db.commit()
-    except Exception as e:
+    except HTTPException:
+        raise
+    except PlatformError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="请求参数格式无效")
+    except Exception:
+        logger.exception("escalations 路由内部错误")
+        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
     return {**_event_to_dict(event), "message": "已升级"}
 
 
@@ -73,8 +84,15 @@ async def resolve_escalation(escalation_id: str, data: EscalationResolveRequest,
             data.notes,
         )
         await db.commit()
-    except Exception as e:
+    except HTTPException:
+        raise
+    except PlatformError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="请求参数格式无效")
+    except Exception:
+        logger.exception("escalations 路由内部错误")
+        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
     return {**_event_to_dict(event), "message": f"升级已解决: {event.resolution}"}
 
 

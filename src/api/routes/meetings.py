@@ -1,4 +1,5 @@
 import uuid
+import logging
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
@@ -6,7 +7,10 @@ from src.api.deps import get_db
 from src.services.meeting_orchestrator import MeetingOrchestrator, MeetingCreate
 from src.meeting.types import MeetingType, MeetingStatus
 from src.meeting.protocol import meeting_protocol_registry
+from src.core.exceptions import PlatformError
 
+
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -98,8 +102,15 @@ async def create_meeting(data: MeetingCreateRequest, db: AsyncSession = Depends(
             participant_agent_ids=participant_ids,
             max_turns=data.max_turns,
         ))
-    except Exception as e:
+    except HTTPException:
+        raise
+    except PlatformError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="请求参数格式无效")
+    except Exception:
+        logger.exception("meetings 路由内部错误")
+        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
     return {**_meeting_to_dict(meeting), "message": "会议已创建"}
 
 
@@ -120,8 +131,15 @@ async def get_meeting(meeting_id: str, db: AsyncSession = Depends(get_db)):
     svc = MeetingOrchestrator(db)
     try:
         meeting = await svc.get_meeting(uuid.UUID(meeting_id))
-    except Exception as e:
+    except HTTPException:
+        raise
+    except PlatformError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="请求参数格式无效")
+    except Exception:
+        logger.exception("meetings 路由内部错误")
+        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
     result = _meeting_to_dict(meeting)
     participants = await svc.get_participants(meeting.id)
     result["participants"] = [
@@ -141,8 +159,15 @@ async def start_meeting(meeting_id: str, db: AsyncSession = Depends(get_db)):
     svc = MeetingOrchestrator(db)
     try:
         engine = await svc.start_meeting(uuid.UUID(meeting_id))
-    except Exception as e:
+    except HTTPException:
+        raise
+    except PlatformError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="请求参数格式无效")
+    except Exception:
+        logger.exception("meetings 路由内部错误")
+        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
     return {"meeting_id": meeting_id, "status": "in_progress", "live": engine.to_dict()}
 
 
@@ -151,8 +176,15 @@ async def end_meeting(meeting_id: str, db: AsyncSession = Depends(get_db)):
     svc = MeetingOrchestrator(db)
     try:
         meeting = await svc.end_meeting(uuid.UUID(meeting_id))
-    except Exception as e:
+    except HTTPException:
+        raise
+    except PlatformError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="请求参数格式无效")
+    except Exception:
+        logger.exception("meetings 路由内部错误")
+        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
     return {"meeting_id": meeting_id, "status": meeting.status, "message": "会议已休会"}
 
 
@@ -161,8 +193,15 @@ async def cancel_meeting(meeting_id: str, db: AsyncSession = Depends(get_db)):
     svc = MeetingOrchestrator(db)
     try:
         meeting = await svc.cancel_meeting(uuid.UUID(meeting_id))
-    except Exception as e:
+    except HTTPException:
+        raise
+    except PlatformError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="请求参数格式无效")
+    except Exception:
+        logger.exception("meetings 路由内部错误")
+        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
     return {"meeting_id": meeting_id, "status": meeting.status, "message": "会议已取消"}
 
 
@@ -171,8 +210,15 @@ async def complete_meeting(meeting_id: str, db: AsyncSession = Depends(get_db)):
     svc = MeetingOrchestrator(db)
     try:
         meeting = await svc.complete_meeting(uuid.UUID(meeting_id))
-    except Exception as e:
+    except HTTPException:
+        raise
+    except PlatformError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="请求参数格式无效")
+    except Exception:
+        logger.exception("meetings 路由内部错误")
+        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
     return {"meeting_id": meeting_id, "status": meeting.status, "message": "会议已完成"}
 
 
@@ -209,8 +255,15 @@ async def add_statement(meeting_id: str, data: StatementRequest, db: AsyncSessio
             uuid.UUID(data.reply_to_statement_id) if data.reply_to_statement_id else None,
             data.token_count,
         )
-    except Exception as e:
+    except HTTPException:
+        raise
+    except PlatformError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="请求参数格式无效")
+    except Exception:
+        logger.exception("meetings 路由内部错误")
+        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
     return {"id": str(stmt.id), "content": stmt.content[:100] + "...", "message": "发言已记录"}
 
 
@@ -235,8 +288,15 @@ async def save_minutes(meeting_id: str, data: MinutesRequest, db: AsyncSession =
             data.action_items, data.decisions,
             uuid.UUID(data.generated_by_agent_id),
         )
-    except Exception as e:
+    except HTTPException:
+        raise
+    except PlatformError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="请求参数格式无效")
+    except Exception:
+        logger.exception("meetings 路由内部错误")
+        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
     return {"id": str(minutes.id), "version": minutes.version, "message": "纪要已保存"}
 
 

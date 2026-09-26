@@ -1,10 +1,14 @@
 import uuid
+import logging
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 from src.api.deps import get_db
 from src.services.agent_lifecycle import AgentLifecycleService, AgentCreate
+from src.core.exceptions import PlatformError
 
+
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -107,8 +111,15 @@ async def create_agent(data: AgentCreateRequest, db: AsyncSession = Depends(get_
             soul_content=data.soul_content,
             memory_content=data.memory_content,
         ))
-    except Exception as e:
+    except HTTPException:
+        raise
+    except PlatformError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="请求参数格式无效")
+    except Exception:
+        logger.exception("agents 路由内部错误")
+        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
     return {
         "id": str(agent.id),
         "name": agent.name,
@@ -123,8 +134,15 @@ async def get_agent(agent_id: str, db: AsyncSession = Depends(get_db)):
     svc = AgentLifecycleService(db)
     try:
         agent = await svc.get_agent(uuid.UUID(agent_id))
-    except Exception as e:
+    except HTTPException:
+        raise
+    except PlatformError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="请求参数格式无效")
+    except Exception:
+        logger.exception("agents 路由内部错误")
+        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
     from src.utils.file_system import read_agent_soul, read_agent_memory
     from src.core.config import settings
     full_path = settings.project_root / agent.agent_folder_path
@@ -203,8 +221,15 @@ async def deactivate_agent(agent_id: str, db: AsyncSession = Depends(get_db)):
     svc = AgentLifecycleService(db)
     try:
         agent = await svc.deactivate_agent(uuid.UUID(agent_id))
-    except Exception as e:
+    except HTTPException:
+        raise
+    except PlatformError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="请求参数格式无效")
+    except Exception:
+        logger.exception("agents 路由内部错误")
+        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
     return {"id": str(agent.id), "name": agent.name, "is_active": agent.is_active, "message": "Agent已停用"}
 
 
@@ -213,8 +238,15 @@ async def delete_agent(agent_id: str, db: AsyncSession = Depends(get_db)):
     svc = AgentLifecycleService(db)
     try:
         await svc.delete_agent(uuid.UUID(agent_id))
-    except Exception as e:
+    except HTTPException:
+        raise
+    except PlatformError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="请求参数格式无效")
+    except Exception:
+        logger.exception("agents 路由内部错误")
+        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
     return {"message": "Agent已删除"}
 
 
@@ -223,8 +255,15 @@ async def get_agent_soul(agent_id: str, db: AsyncSession = Depends(get_db)):
     svc = AgentLifecycleService(db)
     try:
         agent = await svc.get_agent(uuid.UUID(agent_id))
-    except Exception as e:
+    except HTTPException:
+        raise
+    except PlatformError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="请求参数格式无效")
+    except Exception:
+        logger.exception("agents 路由内部错误")
+        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
     from src.utils.file_system import read_agent_soul
     from src.core.config import settings
     full_path = settings.project_root / agent.agent_folder_path
@@ -236,8 +275,15 @@ async def update_agent_soul(agent_id: str, data: AgentUpdateSoulRequest, db: Asy
     svc = AgentLifecycleService(db)
     try:
         agent = await svc.get_agent(uuid.UUID(agent_id))
-    except Exception as e:
+    except HTTPException:
+        raise
+    except PlatformError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="请求参数格式无效")
+    except Exception:
+        logger.exception("agents 路由内部错误")
+        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
     from src.utils.file_system import write_agent_soul
     from src.core.config import settings
     full_path = settings.project_root / agent.agent_folder_path
@@ -251,8 +297,15 @@ async def get_agent_memory(agent_id: str, db: AsyncSession = Depends(get_db)):
     svc = AgentLifecycleService(db)
     try:
         agent = await svc.get_agent(uuid.UUID(agent_id))
-    except Exception as e:
+    except HTTPException:
+        raise
+    except PlatformError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="请求参数格式无效")
+    except Exception:
+        logger.exception("agents 路由内部错误")
+        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
     from src.utils.file_system import read_agent_memory
     from src.core.config import settings
     full_path = settings.project_root / agent.agent_folder_path

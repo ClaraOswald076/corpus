@@ -1,10 +1,15 @@
 import uuid
+import logging
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel, field_validator
 from src.api.deps import get_db
 from src.services.org_structure import OrgStructureService, DepartmentCreate, DepartmentUpdate, OrgTier, DeptType
+from sqlalchemy.exc import IntegrityError
+from src.core.exceptions import PlatformError
 
+
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -115,8 +120,15 @@ async def get_department(department_id: str, db: AsyncSession = Depends(get_db))
     svc = OrgStructureService(db)
     try:
         dept = await svc.get_department(uuid.UUID(department_id))
-    except Exception as e:
+    except HTTPException:
+        raise
+    except PlatformError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="请求参数格式无效")
+    except Exception:
+        logger.exception("organizations 路由内部错误")
+        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
     return {
         "id": str(dept.id),
         "name": dept.name,
@@ -153,8 +165,17 @@ async def create_department(data: DepartmentCreateRequest, db: AsyncSession = De
             dept_code=data.dept_code,
             sort_order=data.sort_order,
         ))
-    except Exception as e:
+    except HTTPException:
+        raise
+    except PlatformError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="请求参数格式无效")
+    except IntegrityError:
+        raise HTTPException(status_code=400, detail="部门名称或编码已被占用")
+    except Exception:
+        logger.exception("organizations 路由内部错误")
+        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
     return {"id": str(dept.id), "name": dept.name, "tier": dept.tier, "org_path": dept.org_path}
 
 
@@ -170,8 +191,17 @@ async def update_department(department_id: str, data: DepartmentUpdateRequest, d
             sort_order=data.sort_order,
             is_active=data.is_active,
         ))
-    except Exception as e:
+    except HTTPException:
+        raise
+    except PlatformError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="请求参数格式无效")
+    except IntegrityError:
+        raise HTTPException(status_code=400, detail="部门名称或编码已被占用")
+    except Exception:
+        logger.exception("organizations 路由内部错误")
+        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
     return {"id": str(dept.id), "name": dept.name, "message": "更新成功"}
 
 
@@ -180,8 +210,17 @@ async def delete_department(department_id: str, db: AsyncSession = Depends(get_d
     svc = OrgStructureService(db)
     try:
         await svc.delete_department(uuid.UUID(department_id))
-    except Exception as e:
+    except HTTPException:
+        raise
+    except PlatformError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="请求参数格式无效")
+    except IntegrityError:
+        raise HTTPException(status_code=400, detail="部门名称或编码已被占用")
+    except Exception:
+        logger.exception("organizations 路由内部错误")
+        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
     return {"message": "部门已删除"}
 
 
@@ -190,6 +229,15 @@ async def move_department(department_id: str, new_parent_id: str, db: AsyncSessi
     svc = OrgStructureService(db)
     try:
         dept = await svc.move_department(uuid.UUID(department_id), uuid.UUID(new_parent_id))
-    except Exception as e:
+    except HTTPException:
+        raise
+    except PlatformError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="请求参数格式无效")
+    except IntegrityError:
+        raise HTTPException(status_code=400, detail="部门名称或编码已被占用")
+    except Exception:
+        logger.exception("organizations 路由内部错误")
+        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
     return {"id": str(dept.id), "name": dept.name, "new_parent_id": new_parent_id, "message": "移动成功"}

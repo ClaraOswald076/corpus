@@ -1,11 +1,15 @@
 import uuid
+import logging
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from pydantic import BaseModel
 from src.api.deps import get_db
 from src.services.task_manager import TaskManagerService, TaskCreate, TaskDecomposition, TaskStatus, TaskPriority
+from src.core.exceptions import PlatformError
 
+
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -92,8 +96,15 @@ async def create_task(data: TaskCreateRequest, db: AsyncSession = Depends(get_db
             max_retries=data.max_retries,
             tags=data.tags,
         ))
-    except Exception as e:
+    except HTTPException:
+        raise
+    except PlatformError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="请求参数格式无效")
+    except Exception:
+        logger.exception("tasks 路由内部错误")
+        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
     return {**_task_to_dict(task), "message": "任务已创建"}
 
 
@@ -102,8 +113,15 @@ async def get_task(task_id: str, db: AsyncSession = Depends(get_db)):
     svc = TaskManagerService(db)
     try:
         task = await svc.get_task(uuid.UUID(task_id))
-    except Exception as e:
+    except HTTPException:
+        raise
+    except PlatformError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="请求参数格式无效")
+    except Exception:
+        logger.exception("tasks 路由内部错误")
+        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
     return _task_to_dict(task)
 
 
@@ -112,8 +130,15 @@ async def get_task_tree(task_id: str, db: AsyncSession = Depends(get_db)):
     svc = TaskManagerService(db)
     try:
         tree = await svc.get_task_tree(uuid.UUID(task_id))
-    except Exception as e:
+    except HTTPException:
+        raise
+    except PlatformError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="请求参数格式无效")
+    except Exception:
+        logger.exception("tasks 路由内部错误")
+        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
     return _tree_to_dict(tree)
 
 
@@ -122,8 +147,15 @@ async def get_task_breadcrumb(task_id: str, db: AsyncSession = Depends(get_db)):
     svc = TaskManagerService(db)
     try:
         return await svc.get_task_breadcrumb(uuid.UUID(task_id))
-    except Exception as e:
+    except HTTPException:
+        raise
+    except PlatformError as e:
         raise HTTPException(status_code=404, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="请求参数格式无效")
+    except Exception:
+        logger.exception("tasks 路由内部错误")
+        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
 
 
 @router.put("/{task_id}/status")
@@ -143,8 +175,15 @@ async def update_task_status(task_id: str, data: TaskStatusUpdateRequest, db: As
         if not handler:
             raise HTTPException(status_code=400, detail=f"不支持的状态: {data.status}")
         task = await handler()
-    except Exception as e:
+    except HTTPException:
+        raise
+    except PlatformError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="请求参数格式无效")
+    except Exception:
+        logger.exception("tasks 路由内部错误")
+        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
     return {**_task_to_dict(task), "message": f"状态已更新为 {task.status}"}
 
 
@@ -164,8 +203,15 @@ async def decompose_task(task_id: str, data: TaskDecomposeRequest, db: AsyncSess
             for st in data.sub_tasks
         ]
         created = await svc.decompose_task(uuid.UUID(task_id), sub_tasks)
-    except Exception as e:
+    except HTTPException:
+        raise
+    except PlatformError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="请求参数格式无效")
+    except Exception:
+        logger.exception("tasks 路由内部错误")
+        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
     return {
         "parent_task_id": task_id,
         "sub_tasks": [_task_to_dict(t) for t in created],
@@ -182,8 +228,15 @@ async def add_task_dependency(task_id: str, data: TaskDependencyRequest, db: Asy
             uuid.UUID(data.depends_on_task_id),
             data.dependency_type,
         )
-    except Exception as e:
+    except HTTPException:
+        raise
+    except PlatformError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="请求参数格式无效")
+    except Exception:
+        logger.exception("tasks 路由内部错误")
+        raise HTTPException(status_code=500, detail="服务器内部错误，请稍后重试")
     return {"message": "依赖已添加"}
 
 

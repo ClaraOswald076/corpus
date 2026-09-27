@@ -88,9 +88,11 @@ class AgentLifecycleService:
         agent = await self.agent_repo.get(agent_id)
         if not agent:
             raise AgentNotFoundError(f"Agent不存在: {agent_id}")
+        # 先删库后删目录：flush 时 soul 文档随级联删除，任何完整性错误
+        # 都在动文件系统之前抛出、可整体回滚；目录删除失败则由路由回滚，行与目录都保留可重试
+        await self.agent_repo.delete(agent)
         full_path = settings.project_root / agent.agent_folder_path
         delete_agent_folder(str(full_path))
-        await self.agent_repo.delete(agent)
 
     async def get_agent(self, agent_id: uuid.UUID) -> Agent:
         agent = await self.agent_repo.get(agent_id)

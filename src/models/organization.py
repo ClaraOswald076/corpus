@@ -44,7 +44,11 @@ class Agent(Base, UUIDMixin, TimestampMixin):
     department = relationship("Department", back_populates="agents", foreign_keys=[department_id])
     reports_to = relationship("Agent", remote_side="Agent.id", backref="subordinates")
     model_preset = relationship("ModelPreset", back_populates="agents")
-    soul_document: Mapped["SoulDocument | None"] = relationship("SoulDocument", back_populates="agent", uselist=False)
+    # 级联删除：删 Agent 时 soul_documents 行随 ORM 正常 DELETE，
+    # 否则 ORM 会先把 agent_id 置 NULL，撞 non-null 约束导致删除永远失败
+    soul_document: Mapped["SoulDocument | None"] = relationship(
+        "SoulDocument", back_populates="agent", uselist=False, cascade="all, delete-orphan"
+    )
 
     __table_args__ = (
         Index("idx_agents_department", "department_id"),

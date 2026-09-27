@@ -24,8 +24,10 @@ class DailyBriefingPipeline:
                 select(DailyBriefing).where(DailyBriefing.briefing_date == today)
             )
             existing = result.scalar_one_or_none()
-            if existing and existing.status == "sent":
-                return existing
+            # 幂等守卫：今天已有非 failed 的简报就跳过（briefing_date 唯一，
+            # 二次生成会撞 UNIQUE 约束直接崩掉调用栈）；failed 保留重试语义
+            if existing and existing.status != "failed":
+                return None
 
             meeting_repo = MeetingRepository(session)
             task_repo = TaskRepository(session)
@@ -83,14 +85,22 @@ class DailyBriefingPipeline:
 
             gen_by = secretariat_agent_id or (agents[0].id if agents else None)
 
-            briefing = DailyBriefing(
-                briefing_date=today,
-                generated_by=gen_by,
-                reviewed_by=communications_agent_id,
-                content=content,
-                status="draft",
-            )
-            session.add(briefing)
+            if existing:
+                # failed 当天重试：复用唯一行覆盖内容，避免撞 briefing_date 唯一约束
+                briefing = existing
+                briefing.content = content
+                briefing.generated_by = gen_by
+                briefing.reviewed_by = communications_agent_id
+                briefing.status = "draft"
+            else:
+                briefing = DailyBriefing(
+                    briefing_date=today,
+                    generated_by=gen_by,
+                    reviewed_by=communications_agent_id,
+                    content=content,
+                    status="draft",
+                )
+                session.add(briefing)
             await session.commit()
             return briefing
 

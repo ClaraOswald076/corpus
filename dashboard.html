@@ -228,7 +228,7 @@ function toast(msg,type='ok') {
 function modal(title,body,onSave) {
   const m=document.getElementById('modal');
   document.getElementById('modal-content').innerHTML=
-    `<h3>${title}</h3>${body}<div style="margin-top:16px;text-align:right">
+    `<h3>${escapeHtml(title)}</h3>${body}<div style="margin-top:16px;text-align:right">
     <button class="btn" onclick="closeModal()">取消</button>
     <button class="btn btn-primary" id="modal-save">保存</button></div>`;
   m.classList.add('active');
@@ -256,7 +256,7 @@ async function loadOverview() {
     <div class="stat-card"><div class="num" style="color:${failedTasks.length? 'var(--red)':'var(--green)'}">${failedTasks.length||0}</div><div class="label">需关注</div></div>
   `;
   document.getElementById('overview-active-meetings').innerHTML = meetings.filter(m=>m.status=='in_progress').length
-    ? meetings.filter(m=>m.status=='in_progress').map(m=>`<div>◉ ${m.meeting_code} ${m.title} (${m.meeting_type})</div>`).join('')
+    ? meetings.filter(m=>m.status=='in_progress').map(m=>`<div>◉ ${m.meeting_code} ${escapeHtml(m.title)} (${m.meeting_type})</div>`).join('')
     : '无活跃会议';
   document.getElementById('overview-pending-escalations').innerHTML = escalations.length
     ? escalations.map(e=>`<div>⚠ L${e.escalation_level} 任务${e.task_id?.slice(0,8)} → ${e.reason}</div>`).join('')
@@ -269,16 +269,16 @@ async function refreshOrg() {
   function render(nodes) {
     return nodes.map(n=>`
       <div class="org-node">
-        <span style="color:var(--primary)">[T${n.tier}]</span> <strong>${n.name}</strong>
+        <span style="color:var(--primary)">[T${n.tier}]</span> <strong>${escapeHtml(n.name)}</strong>
         <span style="color:var(--text2);font-size:.8em">(${n.dept_type})</span>
         ${n.dept_code?` <span class="tag tag-b">${n.dept_code}</span>`:''}
         ${!n.is_active?' <span class="tag tag-r">已停用</span>':''}
         <span style="float:right">
-          <button class="btn btn-sm" onclick="deleteDept('${n.id}','${n.name}')">删除</button>
+          <button class="btn btn-sm" onclick="deleteDept(${jsAttr(n.id)},${jsAttr(n.name)})">删除</button>
         </span>
         ${n.agents?.length?`
           <div style="margin-top:6px;font-size:.82em;color:var(--text2)">
-            ${n.agents.map(a=>`<span style="margin-right:10px" title="${a.role} · ${a.preset||'无模型'}">${a.is_active?'🤖':'💤'} ${a.name}</span>`).join('')}
+            ${n.agents.map(a=>`<span style="margin-right:10px" title="${escapeHtml(a.role)} · ${escapeHtml(a.preset||'无模型')}">${a.is_active?'🤖':'💤'} ${escapeHtml(a.name)}</span>`).join('')}
           </div>`:''}
       </div>
       ${n.children?.length?`<div class="org-children">${render(n.children)}</div>`:''}
@@ -322,17 +322,17 @@ async function refreshAgents() {
   document.getElementById('agent-list').innerHTML = agents.length ? `
     <table><tr><th>名称</th><th>角色</th><th>模型/温度</th><th>状态</th><th>操作</th></tr>
     ${agents.map(a=>`<tr>
-      <td><strong>${a.name}</strong></td><td>${a.role}</td>
+      <td><strong>${escapeHtml(a.name)}</strong></td><td>${escapeHtml(a.role)}</td>
       <td>
-        <span style="font-size:.82em">${a.preset_name||'<span class="tag tag-r">无模型</span>'}</span>
+        <span style="font-size:.82em">${a.preset_name?escapeHtml(a.preset_name):'<span class="tag tag-r">无模型</span>'}</span>
         <span style="font-size:.78em;color:var(--text2)"> | T:${a.temperature} | tok:${a.max_tokens}</span>
       </td>
       <td>${a.is_active?'<span class="tag tag-g">活跃</span>':'<span class="tag tag-r">停用</span>'}</td>
       <td>
         <button class="btn btn-sm" onclick="viewAgent('${a.id}')">详情</button>
-        <button class="btn btn-sm" onclick="editAgent('${a.id}','${a.name}','${a.role}','${a.preset_name||''}',${a.temperature},${a.max_tokens},${a.max_memory_tokens},${a.is_active})">✏️</button>
-        ${a.is_active?`<button class="btn btn-sm" onclick="toggleAgent('${a.id}',false,'${a.name}')">停用</button>`:`<button class="btn btn-sm btn-primary" onclick="toggleAgent('${a.id}',true,'${a.name}')">启用</button>`}
-        <button class="btn btn-sm btn-danger" onclick="deleteAgent('${a.id}','${a.name}')">删除</button>
+        <button class="btn btn-sm" onclick="editAgent('${a.id}',${jsAttr(a.name)},${jsAttr(a.role)},${jsAttr(a.preset_name||'')},${a.temperature},${a.max_tokens},${a.max_memory_tokens},${a.is_active})">✏️</button>
+        ${a.is_active?`<button class="btn btn-sm" onclick="toggleAgent('${a.id}',false,${jsAttr(a.name)})">停用</button>`:`<button class="btn btn-sm btn-primary" onclick="toggleAgent('${a.id}',true,${jsAttr(a.name)})">启用</button>`}
+        <button class="btn btn-sm btn-danger" onclick="deleteAgent('${a.id}',${jsAttr(a.name)})">删除</button>
       </td>
     `).join('')}</table>
   ` : '<p style="color:var(--text2)">暂无Agent，请先创建</p>';
@@ -347,9 +347,9 @@ async function toggleAgent(id, activate, name) {
 
 async function editAgent(id, name, role, presetName, temp, maxTok, maxMem, active) {
   const presets = agentPresets.length ? agentPresets : await api('/api/presets/');
-  const presetOpts = presets.map(p=>`<option value="${p.name}" ${p.name===presetName?'selected':''}>${p.name} (${p.provider})</option>`).join('');
+  const presetOpts = presets.map(p=>`<option value="${escapeHtml(p.name)}" ${p.name===presetName?'selected':''}>${escapeHtml(p.name)} (${p.provider})</option>`).join('');
   modal(`编辑: ${name}`,`
-    <p><strong>角色:</strong> ${role} | <strong>状态:</strong> ${active?'活跃':'停用'}</p>
+    <p><strong>角色:</strong> ${escapeHtml(role)} | <strong>状态:</strong> ${active?'活跃':'停用'}</p>
     <label>模型预设</label><select id="f-edit-preset"><option value="">无</option>${presetOpts}</select>
     <label>Temperature</label><input id="f-edit-temp" type="number" step="0.1" min="0" max="2" value="${temp}">
     <label>Max Tokens</label><input id="f-edit-tokens" type="number" value="${maxTok}">
@@ -371,7 +371,7 @@ async function openAgentModal() {
   modal('新建Agent',`
     <label>名称</label><input id="f-agent-name">
     <label>角色</label><input id="f-agent-role">
-    <label>所属部门</label><select id="f-agent-dept">${depts.map(d=>`<option value="${d.name}">${d.name} (T${d.tier})</option>`).join('')}</select>
+    <label>所属部门</label><select id="f-agent-dept">${depts.map(d=>`<option value="${escapeHtml(d.name)}">${escapeHtml(d.name)} (T${d.tier})</option>`).join('')}</select>
     <label>模型预设名称(可选)</label><input id="f-agent-preset" placeholder="留空使用默认">
     <label>汇报对象(可选)</label><input id="f-agent-superior" placeholder="Agent名称，留空跳过">
     <label>系统提示词(可选)</label><textarea id="f-agent-prompt" rows="3" placeholder="额外的系统指令"></textarea>
@@ -392,12 +392,12 @@ async function openAgentModal() {
 async function viewAgent(id) {
   const a = await api('/api/agents/'+id);
   modal(`Agent: ${a.name}`,`
-    <p><strong>角色:</strong> ${a.role}</p>
+    <p><strong>角色:</strong> ${escapeHtml(a.role)}</p>
     <p><strong>状态:</strong> ${a.is_active?'活跃':'停用'} (${a.availability_status})</p>
-    <p><strong>文件夹:</strong> ${a.agent_folder_path}</p>
+    <p><strong>文件夹:</strong> ${escapeHtml(a.agent_folder_path)}</p>
     <p><strong>温度:</strong> ${a.temperature} | <strong>max_tokens:</strong> ${a.max_tokens}</p>
     <p><strong>记忆上限:</strong> ${a.max_memory_tokens} tokens</p>
-    <hr><h4>soul.md</h4><pre>${a.soul_content?.substring(0,2000)||'(空)'}</pre>
+    <hr><h4>soul.md</h4><pre>${escapeHtml(a.soul_content?.substring(0,2000)||'(空)')}</pre>
   `);
 }
 
@@ -416,7 +416,7 @@ async function refreshTasks() {
   document.getElementById('task-list').innerHTML = tasks.length?`
     <table><tr><th>编号</th><th>标题</th><th>状态</th><th>优先级</th><th>操作</th></tr>
     ${tasks.map(t=>`<tr>
-      <td><code>${t.task_code}</code></td><td>${t.title}</td>
+      <td><code>${t.task_code}</code></td><td>${escapeHtml(t.title)}</td>
       <td>${icons[t.status]||' '} ${t.status}</td>
       <td><span class="tag tag-${t.priority=='critical'?'r':t.priority=='high'?'o':t.priority=='medium'?'y':'b'}">${t.priority}</span></td>
       <td>
@@ -437,7 +437,7 @@ async function openTaskModal() {
     <label>标题</label><input id="f-task-title">
     <label>描述</label><textarea id="f-task-desc" rows="3"></textarea>
     <label>优先级</label><select id="f-task-pri"><option value="medium">中</option><option value="high">高</option><option value="critical">紧急</option><option value="low">低</option></select>
-    <label>分配给Agent</label><select id="f-task-agent"><option value="">不分配</option>${agents.map(a=>`<option value="${a.name}">${a.name}</option>`).join('')}</select>
+    <label>分配给Agent</label><select id="f-task-agent"><option value="">不分配</option>${agents.map(a=>`<option value="${escapeHtml(a.name)}">${escapeHtml(a.name)}</option>`).join('')}</select>
     <label>父任务编号(可选)</label><input id="f-task-parent">
   `, async ()=>{
     await api('/api/tasks/',{method:'POST',body:JSON.stringify({
@@ -463,7 +463,7 @@ async function viewTask(id) {
   const tree = await api('/api/tasks/'+id+'/tree');
   function render(node,depth=0) {
     const t=node;const prefix='&nbsp;&nbsp;'.repeat(depth);
-    return `${prefix}[${t.status}] ${t.task_code}: ${t.title} (${t.priority})<br>${(node.children||[]).map(c=>render(c,depth+1)).join('')}`;
+    return `${prefix}[${t.status}] ${t.task_code}: ${escapeHtml(t.title)} (${t.priority})<br>${(node.children||[]).map(c=>render(c,depth+1)).join('')}`;
   }
   modal('任务树',`<div style="font-family:monospace;font-size:.85em">${render(tree)}</div>`);
 }
@@ -474,7 +474,7 @@ async function refreshMeetings() {
   document.getElementById('meeting-list').innerHTML = meetings.length?`
     <table><tr><th>编号</th><th>标题</th><th>类型</th><th>状态</th><th>操作</th></tr>
     ${meetings.map(m=>`<tr>
-      <td><code>${m.meeting_code}</code></td><td>${m.title}</td>
+      <td><code>${m.meeting_code}</code></td><td>${escapeHtml(m.title)}</td>
       <td><span class="tag tag-p">${m.meeting_type}</span></td>
       <td>${m.status}</td>
       <td>
@@ -491,8 +491,8 @@ async function openMeetingModal() {
   modal('创建会议',`
     <label>标题</label><input id="f-mtg-title">
     <label>类型</label><select id="f-mtg-type"><option value="coordination">协调会议</option><option value="user_direct">用户直连</option><option value="recruitment_review">招聘研讨</option></select>
-    <label>秘书Agent</label><select id="f-mtg-sec">${agents.filter(a=>a.role.includes('秘书')).map(a=>`<option value="${a.name}">${a.name}</option>`).join('')||'<option>请先创建秘书Agent</option>'}</select>
-    <label>主席Agent(可选)</label><select id="f-mtg-chair"><option value="">自动</option>${agents.map(a=>`<option value="${a.name}">${a.name}</option>`).join('')}</select>
+    <label>秘书Agent</label><select id="f-mtg-sec">${agents.filter(a=>a.role.includes('秘书')).map(a=>`<option value="${escapeHtml(a.name)}">${escapeHtml(a.name)}</option>`).join('')||'<option>请先创建秘书Agent</option>'}</select>
+    <label>主席Agent(可选)</label><select id="f-mtg-chair"><option value="">自动</option>${agents.map(a=>`<option value="${escapeHtml(a.name)}">${escapeHtml(a.name)}</option>`).join('')}</select>
     <label>参会Agent(逗号分隔)</label><input id="f-mtg-parts" placeholder="Agent1,Agent2">
   `, async ()=>{
     await api('/api/meetings/',{method:'POST',body:JSON.stringify({
@@ -523,7 +523,7 @@ async function viewMeeting(id) {
   modal(`会议: ${m.title}`,
     `<p><strong>编号:</strong> ${m.meeting_code} | <strong>类型:</strong> ${m.meeting_type} | <strong>状态:</strong> ${m.status}</p>
     <p><strong>参会者:</strong> ${(m.participants||[]).map(p=>`${p.role}: ${p.agent_id?.slice(0,8)}`).join(', ')||'无'}</p>
-    ${stmts.length?`<h4>发言记录 (${stmts.length}条)</h4>${stmts.map(s=>`<p style="font-size:.85em;margin:4px 0">[${s.type}] <strong>${s.speaker?.slice(0,8)}</strong>: ${s.content?.substring(0,100)}...</p>`).join('')}`:''}
+    ${stmts.length?`<h4>发言记录 (${stmts.length}条)</h4>${stmts.map(s=>`<p style="font-size:.85em;margin:4px 0">[${s.type}] <strong>${escapeHtml(s.speaker?.slice(0,8))}</strong>: ${escapeHtml(s.content?.substring(0,100))}...</p>`).join('')}`:''}
   `);
 }
 
@@ -533,9 +533,9 @@ async function refreshPresets() {
   document.getElementById('preset-list').innerHTML = presets.length?`
     <table><tr><th>名称</th><th>提供商</th><th>模型</th><th>状态</th><th>操作</th></tr>
     ${presets.map(p=>`<tr>
-      <td><strong>${p.name}</strong></td><td>${p.provider}</td><td>${p.model_name}</td>
+      <td><strong>${escapeHtml(p.name)}</strong></td><td>${p.provider}</td><td>${escapeHtml(p.model_name)}</td>
       <td>${p.is_active?'<span class="tag tag-g">活跃</span>':''}</td>
-      <td><button class="btn btn-sm btn-danger" onclick="deletePreset('${p.id}','${p.name}')">删除</button></td>
+      <td><button class="btn btn-sm btn-danger" onclick="deletePreset('${p.id}',${jsAttr(p.name)})">删除</button></td>
     `).join('')}</table>
   `:'<p style="color:var(--text2)">暂无模型预设，请先创建</p>';
 }
@@ -604,7 +604,7 @@ async function loadChatAgents() {
   sel.innerHTML = '<option value="">选择 Agent...</option>';
   agents.forEach(a => {
     const status = a.is_active ? (a.has_model ? '✓' : '⚠无模型') : '✗停用';
-    sel.innerHTML += `<option value="${a.name}">${a.name} — ${a.role} [${status}]</option>`;
+    sel.innerHTML += `<option value="${escapeHtml(a.name)}">${escapeHtml(a.name)} — ${escapeHtml(a.role)} [${status}]</option>`;
   });
   if (current) sel.value = current;
 }
@@ -618,10 +618,10 @@ async function selectChatAgent(name) {
   if (a) {
     document.getElementById('chat-agent-select').value = name;
     document.getElementById('chat-agent-info').innerHTML =
-      `<span class="tag tag-${a.tier===0?'b':a.tier===1?'p':'g'}">T${a.tier}</span> ${a.role} | ${a.department} ${a.has_model?'':'<span class="tag tag-r">未配置模型</span>'}`;
+      `<span class="tag tag-${a.tier===0?'b':a.tier===1?'p':'g'}">T${a.tier}</span> ${escapeHtml(a.role)} | ${escapeHtml(a.department)} ${a.has_model?'':'<span class="tag tag-r">未配置模型</span>'}`;
     chatHistory = [];
     document.getElementById('chat-messages').innerHTML =
-      `<div style="color:var(--text2);text-align:center;padding:20px">现在开始与 <strong>${a.name}</strong> (${a.role}) 对话</div>`;
+      `<div style="color:var(--text2);text-align:center;padding:20px">现在开始与 <strong>${escapeHtml(a.name)}</strong> (${escapeHtml(a.role)}) 对话</div>`;
   }
 }
 
@@ -643,7 +643,7 @@ async function sendChat() {
 
   // Show typing
   msgsDiv.innerHTML += `<div class="chat-msg agent" id="typing-indicator">
-    <div class="avatar">🤖</div><div class="bubble typing">${agentName} 正在思考...</div>
+    <div class="avatar">🤖</div><div class="bubble typing">${escapeHtml(agentName)} 正在思考...</div>
   </div>`;
   msgsDiv.scrollTop = msgsDiv.scrollHeight;
 
@@ -660,7 +660,7 @@ async function sendChat() {
     msgsDiv.innerHTML += `<div class="chat-msg agent">
       <div class="avatar">🤖</div>
       <div class="bubble">
-        <div class="meta">${res.agent_name} (${res.agent_role}) · ${res.tokens_used||0} tokens · $${res.cost_usd?.toFixed(4)||0}</div>
+        <div class="meta">${escapeHtml(res.agent_name)} (${escapeHtml(res.agent_role)}) · ${res.tokens_used||0} tokens · $${res.cost_usd?.toFixed(4)||0}</div>
         ${escapeHtml(res.reply).replace(/\n/g,'<br>')}
       </div>
     </div>`;
@@ -677,9 +677,12 @@ async function sendChat() {
 }
 
 function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
+  return String(text ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+// 库内自由文本要传进内联 onclick 时用：HTML 解码后即合法 JS 字符串字面量，引号无法逃逸
+function jsAttr(value) {
+  return escapeHtml(JSON.stringify(String(value ?? '')));
 }
 
 // Init

@@ -125,7 +125,7 @@ async def get_agent(agent_id: str, db: AsyncSession = Depends(get_db)):
         agent = await svc.get_agent(uuid.UUID(agent_id))
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
-    from src.utils.file_system import read_agent_soul, read_agent_memory
+    from src.utils.file_system import read_agent_soul, read_agent_memory, agent_soul_exists
     from src.core.config import settings
     full_path = settings.project_root / agent.agent_folder_path
     return {
@@ -143,6 +143,7 @@ async def get_agent(agent_id: str, db: AsyncSession = Depends(get_db)):
         "temperature": agent.temperature,
         "max_tokens": agent.max_tokens,
         "soul_content": read_agent_soul(str(full_path)),
+        "soul_missing": not agent_soul_exists(str(full_path)),
         "memory_content": read_agent_memory(str(full_path)),
     }
 
@@ -225,10 +226,14 @@ async def get_agent_soul(agent_id: str, db: AsyncSession = Depends(get_db)):
         agent = await svc.get_agent(uuid.UUID(agent_id))
     except Exception as e:
         raise HTTPException(status_code=404, detail=str(e))
-    from src.utils.file_system import read_agent_soul
+    from src.utils.file_system import read_agent_soul, agent_soul_exists
     from src.core.config import settings
     full_path = settings.project_root / agent.agent_folder_path
-    return {"agent_name": agent.name, "soul_content": read_agent_soul(str(full_path))}
+    return {
+        "agent_name": agent.name,
+        "soul_content": read_agent_soul(str(full_path)),
+        "soul_missing": not agent_soul_exists(str(full_path)),
+    }
 
 
 @router.put("/{agent_id}/soul")

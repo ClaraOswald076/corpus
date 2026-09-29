@@ -5,6 +5,7 @@ import pytest
 from src.core.config import settings
 from src.core.exceptions import PlatformError
 from src.utils.file_system import (
+    agent_soul_exists,
     create_agent_folder,
     delete_agent_folder,
     get_agent_folder_path,
@@ -52,3 +53,19 @@ def test_delete_refuses_paths_outside_agents_root(tmp_path, monkeypatch):
     outside.mkdir()
     with pytest.raises(PlatformError):
         delete_agent_folder(str(outside))
+
+
+def test_agent_soul_exists_distinguishes_missing_file_from_empty_soul(tmp_path, monkeypatch):
+    # soul.md 缺失（误删/目录拷贝不完整）必须能被识别，不能与"真空人设"混成同一个空串
+    monkeypatch.setattr(settings, "agents_root", tmp_path / "agents")
+    folder = create_agent_folder("CEO办公室", "测试Agent", soul_content="s", memory_content="m")
+    assert agent_soul_exists(str(folder)) is True
+
+    (folder / settings.soul_filename).unlink()
+    assert agent_soul_exists(str(folder)) is False
+
+
+def test_agent_soul_exists_false_when_folder_itself_is_missing(tmp_path, monkeypatch):
+    monkeypatch.setattr(settings, "agents_root", tmp_path / "agents")
+    ghost = tmp_path / "agents" / "dept" / "ghost"
+    assert agent_soul_exists(str(ghost)) is False

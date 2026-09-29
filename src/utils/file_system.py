@@ -53,6 +53,11 @@ def read_agent_soul(agent_folder_path: str) -> str:
     return ""
 
 
+def agent_soul_exists(agent_folder_path: str) -> bool:
+    path = Path(agent_folder_path) / settings.soul_filename
+    return path.exists()
+
+
 def write_agent_soul(agent_folder_path: str, content: str):
     path = Path(agent_folder_path) / settings.soul_filename
     path.write_text(content, encoding="utf-8")
